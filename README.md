@@ -1,10 +1,11 @@
 <p align="center">
-    <img src="assets/command-icon.png" height="128">
+    <img src="assets/command-icon.png" height="128px">
     <h1 align="center">VMware vCenter Raycast Extensions</h1>
 </p>
 
 ## Features
 
+- Manage multiple vCenter with 'Context Manager'.
 - List all vms with detailed information for each one.
 - Launch console (VMware Remote Console need to be installed).
 - Startup, shutdown and reboot vms with and without vmware guest tools.
