@@ -22,6 +22,9 @@ export default function Command(): JSX.Element {
     isLoading: IsLoadingDatastores,
   } = usePromise(GetDatastoreList, [], {
     execute: false,
+    onData: async () => {
+      await showToast({ style: Toast.Style.Success, title: "Data Loaded" });
+    },
     onError: async (error) => {
       await showToast({ style: Toast.Style.Failure, title: "Error", message: error.message });
     },
@@ -80,6 +83,12 @@ export default function Command(): JSX.Element {
           onAction={() => {
             setShowDetail((prevState) => !prevState);
           }}
+        />
+        <Action
+          title="Refresh"
+          icon={Icon.Repeat}
+          onAction={RevalidateDatastores}
+          shortcut={{ modifiers: ["cmd"], key: "r" }}
         />
         <ActionPanel.Section title="Context Manager">
           <Action
@@ -169,7 +178,7 @@ export default function Command(): JSX.Element {
 
   return (
     <List
-      isLoading={IsLoadingContext && IsLoadingContextSelected && IsLoadingDatastores}
+      isLoading={IsLoadingContext || IsLoadingContextSelected || IsLoadingDatastores}
       isShowingDetail={showDetail}
       actions={GetDatastoreAction()}
       searchBarAccessory={

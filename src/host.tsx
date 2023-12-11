@@ -23,6 +23,9 @@ export default function Command(): JSX.Element {
     isLoading: IsLoadingHosts,
   } = usePromise(GetHostList, [], {
     execute: false,
+    onData: async () => {
+      await showToast({ style: Toast.Style.Success, title: "Data Loaded" });
+    },
     onError: async (error) => {
       await showToast({ style: Toast.Style.Failure, title: "Error", message: error.message });
     },
@@ -80,6 +83,12 @@ export default function Command(): JSX.Element {
             SetShowContextView(true);
           }}
         />
+        <Action
+          title="Refresh"
+          icon={Icon.Repeat}
+          onAction={RevalidateHosts}
+          shortcut={{ modifiers: ["cmd"], key: "r" }}
+        />
         <Action title="Edit Context" icon={Icon.Pencil} onAction={() => SetShowContextViewEdit(true)} />
         <Action title="Delete Context" icon={Icon.DeleteDocument} onAction={DeleteSelectedContext} />
       </ActionPanel>
@@ -116,7 +125,7 @@ export default function Command(): JSX.Element {
 
   return (
     <List
-      isLoading={IsLoadingContext && IsLoadingContextSelected && IsLoadingHosts}
+      isLoading={IsLoadingContext || IsLoadingContextSelected || IsLoadingHosts}
       actions={GetHostAction()}
       searchBarAccessory={
         <List.Dropdown

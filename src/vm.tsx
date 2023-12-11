@@ -46,6 +46,9 @@ export default function Command(): JSX.Element {
     isLoading: IsLoadingVMs,
   } = usePromise(GetVmList, [], {
     execute: false,
+    onData: async () => {
+      await showToast({ style: Toast.Style.Success, title: "Data Loaded" });
+    },
     onError: async (error) => {
       await showToast({ style: Toast.Style.Failure, title: "Error", message: error.message });
     },
@@ -218,11 +221,6 @@ export default function Command(): JSX.Element {
    */
   async function ChangeSelectedContext(value: string) {
     await LocalStorage.setItem("context_selected", value);
-    setSelectedVM("");
-    setVMsInfo(new Map());
-    setVMsGuestNetworkingInterfaces(new Map());
-    setVMsStoragePolicy(new Map());
-    setVMsStoragePolicyCompliance(new Map());
     RevalidateContextSelected();
   }
   /**
@@ -240,12 +238,6 @@ export default function Command(): JSX.Element {
       await LocalStorage.removeItem("context");
       await LocalStorage.removeItem("context_selected");
     }
-    setSelectedVM("");
-    setVMsInfo(new Map());
-    setVMsGuestNetworkingInterfaces(new Map());
-    setVMsStoragePolicy(new Map());
-    setVMsStoragePolicyCompliance(new Map());
-    RevalidateContext();
     RevalidateContextSelected();
   }
   /**
@@ -263,6 +255,12 @@ export default function Command(): JSX.Element {
             onAction={() => {
               setShowDetail((prevState) => !prevState);
             }}
+          />
+          <Action
+            title="Refresh"
+            icon={Icon.Repeat}
+            onAction={RevalidateVMs}
+            shortcut={{ modifiers: ["cmd"], key: "r" }}
           />
           <Action.OpenInBrowser
             title="Open on vCenter Web"
@@ -559,6 +557,15 @@ export default function Command(): JSX.Element {
       setIsLoading(false);
     }
   }, [selectedVM, showDetail]);
+
+  React.useEffect(() => {
+    setShowDetail(false);
+    setSelectedVM("");
+    setVMsInfo(new Map());
+    setVMsGuestNetworkingInterfaces(new Map());
+    setVMsStoragePolicy(new Map());
+    setVMsStoragePolicyCompliance(new Map());
+  }, [VMs]);
 
   React.useEffect(() => {
     if (Context && !IsLoadingContext && ContextSelected && !IsLoadingContextSelected) {
