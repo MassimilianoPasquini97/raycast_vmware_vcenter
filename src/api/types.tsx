@@ -1,3 +1,10 @@
+export interface Context {
+  name: string;
+  server: string;
+  username: string;
+  password: string;
+}
+
 export interface VMSummary {
   name: string;
   power_state: VmPowerState;
