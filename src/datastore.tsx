@@ -78,18 +78,20 @@ export default function Command(): JSX.Element {
     return (
       <ActionPanel title="vCenter Datastore">
         <Action
-          title="Show Detail"
-          icon={Icon.Eye}
+          title={showDetail ? "Hide Detail" : "Show Detail"}
+          icon={showDetail ? Icon.EyeDisabled : Icon.Eye}
           onAction={() => {
             setShowDetail((prevState) => !prevState);
           }}
         />
-        <Action
-          title="Refresh"
-          icon={Icon.Repeat}
-          onAction={RevalidateDatastores}
-          shortcut={{ modifiers: ["cmd"], key: "r" }}
-        />
+        {!IsLoadingDatastores && (
+          <Action
+            title="Refresh"
+            icon={Icon.Repeat}
+            onAction={RevalidateDatastores}
+            shortcut={{ modifiers: ["cmd"], key: "r" }}
+          />
+        )}
         <ActionPanel.Section title="Context Manager">
           <Action
             title="New Context"

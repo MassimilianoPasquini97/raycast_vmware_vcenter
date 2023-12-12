@@ -75,22 +75,26 @@ export default function Command(): JSX.Element {
    */
   function GetHostAction(): JSX.Element {
     return (
-      <ActionPanel title="Context Manager">
-        <Action
-          title="New Context"
-          icon={Icon.NewDocument}
-          onAction={() => {
-            SetShowContextView(true);
-          }}
-        />
-        <Action
-          title="Refresh"
-          icon={Icon.Repeat}
-          onAction={RevalidateHosts}
-          shortcut={{ modifiers: ["cmd"], key: "r" }}
-        />
-        <Action title="Edit Context" icon={Icon.Pencil} onAction={() => SetShowContextViewEdit(true)} />
-        <Action title="Delete Context" icon={Icon.DeleteDocument} onAction={DeleteSelectedContext} />
+      <ActionPanel title="vCenter Host">
+        {!IsLoadingHosts && (
+          <Action
+            title="Refresh"
+            icon={Icon.Repeat}
+            onAction={RevalidateHosts}
+            shortcut={{ modifiers: ["cmd"], key: "r" }}
+          />
+        )}
+        <ActionPanel.Section title="Context Manager">
+          <Action
+            title="New Context"
+            icon={Icon.NewDocument}
+            onAction={() => {
+              SetShowContextView(true);
+            }}
+          />
+          <Action title="Edit Context" icon={Icon.Pencil} onAction={() => SetShowContextViewEdit(true)} />
+          <Action title="Delete Context" icon={Icon.DeleteDocument} onAction={DeleteSelectedContext} />
+        </ActionPanel.Section>
       </ActionPanel>
     );
   }

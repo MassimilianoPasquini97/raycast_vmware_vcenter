@@ -250,18 +250,20 @@ export default function Command(): JSX.Element {
       return (
         <ActionPanel title="vCenter VM">
           <Action
-            title="Show Detail"
-            icon={Icon.Eye}
+            title={showDetail ? "Hide Detail" : "Show Detail"}
+            icon={showDetail ? Icon.EyeDisabled : Icon.Eye}
             onAction={() => {
               setShowDetail((prevState) => !prevState);
             }}
           />
-          <Action
-            title="Refresh"
-            icon={Icon.Repeat}
-            onAction={RevalidateVMs}
-            shortcut={{ modifiers: ["cmd"], key: "r" }}
-          />
+          {!IsLoadingVMs && (
+            <Action
+              title="Refresh"
+              icon={Icon.Repeat}
+              onAction={RevalidateVMs}
+              shortcut={{ modifiers: ["cmd"], key: "r" }}
+            />
+          )}
           <Action.OpenInBrowser
             title="Open on vCenter Web"
             url={`https://${
@@ -338,16 +340,26 @@ export default function Command(): JSX.Element {
       );
 
     return (
-      <ActionPanel title="Context Manager">
-        <Action
-          title="New Context"
-          icon={Icon.NewDocument}
-          onAction={() => {
-            SetShowContextView(true);
-          }}
-        />
-        <Action title="Edit Context" icon={Icon.Pencil} onAction={() => SetShowContextViewEdit(true)} />
-        <Action title="Delete Context" icon={Icon.DeleteDocument} onAction={DeleteSelectedContext} />
+      <ActionPanel title="vCenter VM">
+        {!IsLoadingVMs && (
+          <Action
+            title="Refresh"
+            icon={Icon.Repeat}
+            onAction={RevalidateVMs}
+            shortcut={{ modifiers: ["cmd"], key: "r" }}
+          />
+        )}
+        <ActionPanel.Section title="Context Manager">
+          <Action
+            title="New Context"
+            icon={Icon.NewDocument}
+            onAction={() => {
+              SetShowContextView(true);
+            }}
+          />
+          <Action title="Edit Context" icon={Icon.Pencil} onAction={() => SetShowContextViewEdit(true)} />
+          <Action title="Delete Context" icon={Icon.DeleteDocument} onAction={DeleteSelectedContext} />
+        </ActionPanel.Section>
       </ActionPanel>
     );
   }
