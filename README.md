@@ -5,7 +5,7 @@
 
 ## Features
 
-- Manage multiple vCenter with 'Context Manager'.
+- Manage multiple vCenter Server.
 - List all vms with detailed information for each one.
 - Launch console (VMware Remote Console need to be installed).
 - Startup, shutdown and reboot vms with and without vmware guest tools.

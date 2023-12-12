@@ -1,25 +1,25 @@
-import { Context } from "./types";
-import { Form, LocalStorage } from "@raycast/api";
+import { Server } from "./types";
+import { LocalStorage } from "@raycast/api";
 
 /**
- * Get Saved Context from LocalStorage
- * @returns {Context[] | undefined} Return Saved Context if present otherwise undefined value.
+ * Get Saved Server from LocalStorage
+ * @returns {Server[] | undefined} Return Saved Server if present otherwise undefined value.
  */
-export async function GetContext(): Promise<Context[] | undefined> {
-  const json = await LocalStorage.getItem("context");
+export async function GetServer(): Promise<Server[] | undefined> {
+  const json = await LocalStorage.getItem("server");
   if (json) {
-    return JSON.parse(json as string) as Context[];
+    return JSON.parse(json as string) as Server[];
   } else {
     return undefined;
   }
 }
 
 /**
- * Get Saved Selected Context from LocalStorage
- * @returns {string | undefined} Return Selected Context if present otherwise undefined value.
+ * Get Saved Selected Server from LocalStorage
+ * @returns {string | undefined} Return Selected Server if present otherwise undefined value.
  */
-export async function GetSelectedContext(): Promise<string | undefined> {
-  const json = await LocalStorage.getItem("context_selected");
+export async function GetSelectedServer(): Promise<string | undefined> {
+  const json = await LocalStorage.getItem("server_selected");
   if (json) {
     return json as string;
   } else {

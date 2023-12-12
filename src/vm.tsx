@@ -24,21 +24,21 @@ import {
   OsTextMetadata,
   OsIconsMetadata,
 } from "./api/ui";
-import { GetContext, GetSelectedContext } from "./api/function";
+import { GetServer, GetSelectedServer } from "./api/function";
 import * as React from "react";
 import { List, Toast, Icon, Action, ActionPanel, showToast, Color, LocalStorage } from "@raycast/api";
 import { usePromise } from "@raycast/utils";
-import ContextView from "./api/ContextView";
+import ServerView from "./api/ServerView";
 
 process.env["NODE_TLS_REJECT_UNAUTHORIZED"] = "0";
 
 export default function Command(): JSX.Element {
-  const { data: Context, revalidate: RevalidateContext, isLoading: IsLoadingContext } = usePromise(GetContext);
+  const { data: Server, revalidate: RevalidateServer, isLoading: IsLoadingServer } = usePromise(GetServer);
   const {
-    data: ContextSelected,
-    revalidate: RevalidateContextSelected,
-    isLoading: IsLoadingContextSelected,
-  } = usePromise(GetSelectedContext);
+    data: ServerSelected,
+    revalidate: RevalidateServerSelected,
+    isLoading: IsLoadingServerSelected,
+  } = usePromise(GetSelectedServer);
   const vCenterApi = React.useRef<vCenter | undefined>();
   const {
     data: VMs,
@@ -92,7 +92,7 @@ export default function Command(): JSX.Element {
   ] = React.useState(new Map());
 
   /**
-   * Get All VM available on Current Context.
+   * Get All VM available on Current Server.
    * @returns {Promise<VMSummary[]>}
    */
   async function GetVmList(): Promise<VMSummary[]> {
@@ -104,7 +104,7 @@ export default function Command(): JSX.Element {
     return vms;
   }
   /**
-   * Get All Network available on Current Context.
+   * Get All Network available on Current Server.
    * @returns {Promise<NetworkSummary[]>}
    */
   async function GetNetworks(): Promise<NetworkSummary[]> {
@@ -116,7 +116,7 @@ export default function Command(): JSX.Element {
     return networks;
   }
   /**
-   * Get All Storage Policies available on Current Context.
+   * Get All Storage Policies available on Current Server.
    * @returns {Promise<StoragePoliciesSummary[]>}
    */
   async function GetStoragePolicies(): Promise<StoragePoliciesSummary[]> {
@@ -216,29 +216,30 @@ export default function Command(): JSX.Element {
         );
   }
   /**
-   * Change Selected Context.
-   * @param {string} value - Context Name.
+   * Change Selected Server.
+   * @param {string} value - Server Name.
    */
-  async function ChangeSelectedContext(value: string) {
-    await LocalStorage.setItem("context_selected", value);
-    RevalidateContextSelected();
+  async function ChangeSelectedServer(value: string) {
+    await LocalStorage.setItem("server_selected", value);
+    RevalidateServerSelected();
   }
   /**
-   * Delete Selected Context.
+   * Delete Selected Server.
    */
-  async function DeleteSelectedContext() {
-    if (Context && Context.length > 1) {
-      const NewContext = Context.filter((c) => {
-        return c.name !== ContextSelected;
+  async function DeleteSelectedServer() {
+    if (Server && Server.length > 1) {
+      const NewServer = Server.filter((c) => {
+        return c.name !== ServerSelected;
       });
-      const NewContextSelected = Context[0].name;
-      await LocalStorage.setItem("context", JSON.stringify(NewContext));
-      await LocalStorage.setItem("context_selected", NewContextSelected);
-    } else if (Context) {
-      await LocalStorage.removeItem("context");
-      await LocalStorage.removeItem("context_selected");
+      const NewServerSelected = Server[0].name;
+      await LocalStorage.setItem("server", JSON.stringify(NewServer));
+      await LocalStorage.setItem("server_selected", NewServerSelected);
+    } else if (Server) {
+      await LocalStorage.removeItem("server");
+      await LocalStorage.removeItem("server_selected");
     }
-    RevalidateContextSelected();
+    RevalidateServer();
+    RevalidateServerSelected();
   }
   /**
    * VM Action Menu.
@@ -267,7 +268,7 @@ export default function Command(): JSX.Element {
           <Action.OpenInBrowser
             title="Open on vCenter Web"
             url={`https://${
-              Context && ContextSelected ? Context.filter((value) => value.name === ContextSelected)[0].server : ""
+              Server && ServerSelected ? Server.filter((value) => value.name === ServerSelected)[0].server : ""
             }/ui/app/vm;nav=v/urn:vmomi:VirtualMachine:${vm}:${VMsInfo.get(vm)?.identity?.instance_uuid}/summary`}
             shortcut={{ modifiers: ["cmd"], key: "b" }}
           />
@@ -275,7 +276,7 @@ export default function Command(): JSX.Element {
             title="Open Console"
             icon={{ source: "icons/vm/console.svg" }}
             target={`vmrc://${
-              Context && ContextSelected ? Context.filter((value) => value.name === ContextSelected)[0].server : ""
+              Server && ServerSelected ? Server.filter((value) => value.name === ServerSelected)[0].server : ""
             }/?moid=${vm}`}
             shortcut={{ modifiers: ["cmd"], key: "y" }}
           />
@@ -325,16 +326,16 @@ export default function Command(): JSX.Element {
               onAction={() => VMGuestAction(vm, VMGuestPowerAction.REBOOT)}
             />
           </ActionPanel.Section>
-          <ActionPanel.Section title="Context Manager">
+          <ActionPanel.Section title="vCenter Server">
             <Action
-              title="New Context"
+              title="Add Server"
               icon={Icon.NewDocument}
               onAction={() => {
-                SetShowContextView(true);
+                SetShowServerView(true);
               }}
             />
-            <Action title="Edit Context" icon={Icon.Pencil} onAction={() => SetShowContextViewEdit(true)} />
-            <Action title="Delete Context" icon={Icon.DeleteDocument} onAction={DeleteSelectedContext} />
+            <Action title="Edit Server" icon={Icon.Pencil} onAction={() => SetShowServerViewEdit(true)} />
+            <Action title="Delete Server" icon={Icon.DeleteDocument} onAction={DeleteSelectedServer} />
           </ActionPanel.Section>
         </ActionPanel>
       );
@@ -349,16 +350,16 @@ export default function Command(): JSX.Element {
             shortcut={{ modifiers: ["cmd"], key: "r" }}
           />
         )}
-        <ActionPanel.Section title="Context Manager">
+        <ActionPanel.Section title="vCenter Server">
           <Action
-            title="New Context"
+            title="Add Server"
             icon={Icon.NewDocument}
             onAction={() => {
-              SetShowContextView(true);
+              SetShowServerView(true);
             }}
           />
-          <Action title="Edit Context" icon={Icon.Pencil} onAction={() => SetShowContextViewEdit(true)} />
-          <Action title="Delete Context" icon={Icon.DeleteDocument} onAction={DeleteSelectedContext} />
+          <Action title="Edit Server" icon={Icon.Pencil} onAction={() => SetShowServerViewEdit(true)} />
+          <Action title="Delete Server" icon={Icon.DeleteDocument} onAction={DeleteSelectedServer} />
         </ActionPanel.Section>
       </ActionPanel>
     );
@@ -580,34 +581,33 @@ export default function Command(): JSX.Element {
   }, [VMs]);
 
   React.useEffect(() => {
-    if (Context && !IsLoadingContext && ContextSelected && !IsLoadingContextSelected) {
-      const cs = Context.filter((value) => value.name === ContextSelected)[0];
+    if (Server && !IsLoadingServer && ServerSelected && !IsLoadingServerSelected) {
+      const cs = Server.filter((value) => value.name === ServerSelected)[0];
       vCenterApi.current = new vCenter(cs.server, cs.username, cs.password);
       RevalidateVMs();
       RevalidateNetworks();
       RevalidateStoragePolicies();
-    } else if (Context && !IsLoadingContext && !ContextSelected && !IsLoadingContextSelected) {
-      const name = Context[0].name;
-      LocalStorage.setItem("context_selected", name);
-      RevalidateContextSelected();
-    } else if (!IsLoadingContext && !Context) {
-      SetShowContextView(true);
+    } else if (Server && !IsLoadingServer && !ServerSelected && !IsLoadingServerSelected) {
+      const name = Server[0].name;
+      LocalStorage.setItem("server_selected", name);
+      RevalidateServerSelected();
+    } else if (!IsLoadingServer && !Server) {
+      SetShowServerView(true);
     }
-  }, [Context, IsLoadingContext, ContextSelected, IsLoadingContextSelected]);
+  }, [Server, IsLoadingServer, ServerSelected, IsLoadingServerSelected]);
 
-  const [ShowContextView, SetShowContextView] = React.useState(false);
-  const [ShowContextViewEdit, SetShowContextViewEdit] = React.useState(false);
+  const [ShowServerView, SetShowServerView] = React.useState(false);
+  const [ShowServerViewEdit, SetShowServerViewEdit] = React.useState(false);
 
   React.useEffect(() => {
-    if (!ShowContextView || !ShowContextViewEdit) {
-      RevalidateContext();
-      RevalidateContextSelected();
+    if (!ShowServerView || !ShowServerViewEdit) {
+      RevalidateServer();
+      RevalidateServerSelected();
     }
-  }, [ShowContextView, ShowContextViewEdit]);
+  }, [ShowServerView, ShowServerViewEdit]);
 
-  if (ShowContextView) return <ContextView SetShowView={SetShowContextView} />;
-  if (ShowContextViewEdit && Context)
-    return <ContextView context={ContextSelected} SetShowView={SetShowContextViewEdit} />;
+  if (ShowServerView) return <ServerView SetShowView={SetShowServerView} />;
+  if (ShowServerViewEdit && Server) return <ServerView server={ServerSelected} SetShowView={SetShowServerViewEdit} />;
 
   return (
     <List
@@ -619,11 +619,11 @@ export default function Command(): JSX.Element {
       actions={GetVMAction()}
       searchBarAccessory={
         <List.Dropdown
-          tooltip="Available Context"
-          onChange={ChangeSelectedContext}
-          defaultValue={ContextSelected ? ContextSelected : undefined}
+          tooltip="Available Server"
+          onChange={ChangeSelectedServer}
+          defaultValue={ServerSelected ? ServerSelected : undefined}
         >
-          {Context && Context.map((value) => <List.Dropdown.Item title={value.name} value={value.name} />)}
+          {Server && Server.map((value) => <List.Dropdown.Item title={value.name} value={value.name} />)}
         </List.Dropdown>
       }
     >

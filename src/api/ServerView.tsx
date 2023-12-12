@@ -1,13 +1,13 @@
-import { GetContext } from "./function";
+import { GetServer } from "./function";
 import { Action, ActionPanel, Form, Icon, LocalStorage, Toast, showToast } from "@raycast/api";
 import { usePromise } from "@raycast/utils";
 import * as React from "react";
-import { Context } from "./types";
+import { Server } from "./types";
 import { vCenter } from "./vCenter";
 import { ErrorApiGetToken } from "./errors";
 
 interface props {
-  context?: string;
+  server?: string;
   SetShowView: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
@@ -18,13 +18,13 @@ interface FormData {
   password?: string;
 }
 
-export default function ContextView(props: props): JSX.Element {
-  const NameInfo = "Provide a Name for This Context";
+export default function ServerView(props: props): JSX.Element {
+  const NameInfo = "Provide a Name for This Server";
   const ServerInfo = "vCenter Server FQDN or IP";
   const UsernameInfo = "vCenter Username";
   const PasswordInfo = "vCenter Password";
 
-  const { data: Context, isLoading: IsLoadingContext } = usePromise(GetContext);
+  const { data: Server, isLoading: IsLoadingServer } = usePromise(GetServer);
 
   const [NameError, SetNameError] = React.useState<string | undefined>();
   const [ServerError, SetServerError] = React.useState<string | undefined>();
@@ -38,7 +38,7 @@ export default function ContextView(props: props): JSX.Element {
   function ValidateName(event: any): void {
     const value = event.target.value;
     if (value && value.length > 0) {
-      if (!props.context && Context && Context.filter((c) => c.name === value).length > 0) {
+      if (!props.server && Server && Server.filter((c) => c.name === value).length > 0) {
         SetNameError("You Ave Already Used This Name");
         return;
       }
@@ -128,30 +128,30 @@ export default function ContextView(props: props): JSX.Element {
   }
 
   /**
-   * Save Context to LocalStorage.
+   * Save Server to LocalStorage.
    * @param {FormData} value.
    */
   async function Save(value: FormData): Promise<void> {
-    if ((value.name || props.context) && value.server && value.username && value.password) {
-      // Verify Provided Context Configuration.
+    if ((value.name || props.server) && value.server && value.username && value.password) {
+      // Verify Provided Server Configuration.
       const vcenter = new vCenter(value.server, value.username, value.password);
       const vm = await vcenter.ListVM().catch(async (error: ErrorApiGetToken) => {
         await showToast({ title: "vCenter Error:", message: error.message, style: Toast.Style.Failure });
       });
       if (!vm) return;
 
-      if (Context) {
-        if (!props.context) {
-          Context.push(value as Context);
-          await LocalStorage.setItem("context", JSON.stringify(Context));
+      if (Server) {
+        if (!props.server) {
+          Server.push(value as Server);
+          await LocalStorage.setItem("server", JSON.stringify(Server));
         }
       } else {
-        const context: Context[] = [];
-        context.push(value as Context);
-        await LocalStorage.setItem("context", JSON.stringify(context));
+        const server: Server[] = [];
+        server.push(value as Server);
+        await LocalStorage.setItem("server", JSON.stringify(server));
       }
-      if (props.context) await LocalStorage.setItem("context_selected", props.context);
-      if (value.name) await LocalStorage.setItem("context_selected", value.name);
+      if (props.server) await LocalStorage.setItem("server_selected", props.server);
+      if (value.name) await LocalStorage.setItem("server_selected", value.name);
       props.SetShowView(false);
     } else {
       await showToast({ title: "Compile all Filed First", style: Toast.Style.Failure });
@@ -160,27 +160,27 @@ export default function ContextView(props: props): JSX.Element {
 
   const ActionView = (
     <ActionPanel>
-      {NameError || ServerError || UsernameError || PasswordError || IsLoadingContext ? null : (
+      {NameError || ServerError || UsernameError || PasswordError || IsLoadingServer ? null : (
         <Action.SubmitForm onSubmit={Save} />
       )}
-      {Context ? <Action title="Close" icon={Icon.Xmark} onAction={() => props.SetShowView(false)} /> : null}
+      {Server ? <Action title="Close" icon={Icon.Xmark} onAction={() => props.SetShowView(false)} /> : null}
     </ActionPanel>
   );
 
   return (
-    <Form isLoading={IsLoadingContext} actions={ActionView}>
-      {!props.context ? (
+    <Form isLoading={IsLoadingServer} actions={ActionView}>
+      {!props.server ? (
         <Form.TextField
           id="name"
           title="Name"
-          placeholder="context name"
+          placeholder="server name"
           info={NameInfo}
           error={NameError}
           onChange={DropNameError}
           onBlur={ValidateName}
         />
       ) : null}
-      {!props.context || (props.context && Context) ? (
+      {!props.server || (props.server && Server) ? (
         <Form.TextField
           id="server"
           title="Server"
@@ -190,15 +190,15 @@ export default function ContextView(props: props): JSX.Element {
           onChange={DropServerError}
           onBlur={ValidateServer}
           defaultValue={
-            props.context && Context
-              ? Context.filter((c) => {
-                  return c.name === props.context;
+            props.server && Server
+              ? Server.filter((c) => {
+                  return c.name === props.server;
                 })[0].server
               : undefined
           }
         />
       ) : null}
-      {!props.context || (props.context && Context) ? (
+      {!props.server || (props.server && Server) ? (
         <Form.TextField
           id="username"
           title="Username"
@@ -208,15 +208,15 @@ export default function ContextView(props: props): JSX.Element {
           onChange={DropUsernameError}
           onBlur={ValidateUsername}
           defaultValue={
-            props.context && Context
-              ? Context.filter((c) => {
-                  return c.name === props.context;
+            props.server && Server
+              ? Server.filter((c) => {
+                  return c.name === props.server;
                 })[0].username
               : undefined
           }
         />
       ) : null}
-      {!props.context || (props.context && Context) ? (
+      {!props.server || (props.server && Server) ? (
         <Form.PasswordField
           id="password"
           title="Password"
@@ -225,9 +225,9 @@ export default function ContextView(props: props): JSX.Element {
           onChange={DropPasswordError}
           onBlur={ValidatePassword}
           defaultValue={
-            props.context && Context
-              ? Context.filter((c) => {
-                  return c.name === props.context;
+            props.server && Server
+              ? Server.filter((c) => {
+                  return c.name === props.server;
                 })[0].password
               : undefined
           }

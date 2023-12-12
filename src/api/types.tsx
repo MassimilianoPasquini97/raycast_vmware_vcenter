@@ -1,4 +1,4 @@
-export interface Context {
+export interface Server {
   name: string;
   server: string;
   username: string;
