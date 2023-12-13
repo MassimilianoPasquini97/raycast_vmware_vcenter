@@ -13,7 +13,16 @@
     "type": "git",
     "url": "https://github.com/MassimilianoPasquini97/raycast_vmware_vcenter.git"
   },
-  "preferences": [],
+  "preferences": [
+    {
+      "name": "certificate",
+      "description": "Uncheck for Disable Certificate Validation",
+      "type": "checkbox",
+      "required": false,
+      "default": false,
+      "label": "Certificate Validation Enabled"
+    }
+  ],
   "commands": [
     {
       "name": "vm",

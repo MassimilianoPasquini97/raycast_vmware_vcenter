@@ -26,11 +26,22 @@ import {
 } from "./api/ui";
 import { GetServer, GetSelectedServer } from "./api/function";
 import * as React from "react";
-import { List, Toast, Icon, Action, ActionPanel, showToast, Color, LocalStorage } from "@raycast/api";
+import {
+  List,
+  Toast,
+  Icon,
+  Action,
+  ActionPanel,
+  showToast,
+  Color,
+  LocalStorage,
+  getPreferenceValues,
+} from "@raycast/api";
 import { usePromise } from "@raycast/utils";
 import ServerView from "./api/ServerView";
 
-process.env["NODE_TLS_REJECT_UNAUTHORIZED"] = "0";
+const pref = getPreferenceValues();
+if (!pref.certificate) process.env["NODE_TLS_REJECT_UNAUTHORIZED"] = "0";
 
 export default function Command(): JSX.Element {
   const { data: Server, revalidate: RevalidateServer, isLoading: IsLoadingServer } = usePromise(GetServer);

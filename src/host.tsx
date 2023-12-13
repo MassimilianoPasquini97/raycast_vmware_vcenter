@@ -3,11 +3,12 @@ import { GetServer, GetSelectedServer } from "./api/function";
 import { HostSummary } from "./api/types";
 import { HostPowerStateIcon } from "./api/ui";
 import * as React from "react";
-import { List, Toast, showToast, LocalStorage, Icon, ActionPanel, Action } from "@raycast/api";
+import { List, Toast, showToast, LocalStorage, Icon, ActionPanel, Action, getPreferenceValues } from "@raycast/api";
 import { usePromise } from "@raycast/utils";
 import ServerView from "./api/ServerView";
 
-process.env["NODE_TLS_REJECT_UNAUTHORIZED"] = "0";
+const pref = getPreferenceValues();
+if (!pref.certificate) process.env["NODE_TLS_REJECT_UNAUTHORIZED"] = "0";
 
 export default function Command(): JSX.Element {
   const { data: Server, revalidate: RevalidateServer, isLoading: IsLoadingServer } = usePromise(GetServer);

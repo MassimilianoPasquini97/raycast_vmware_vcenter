@@ -51,6 +51,8 @@ export class vCenter {
       .catch((error) => {
         console.error(error);
         if (error instanceof ErrorApiGetToken) throw error;
+        if (error.code === "UNABLE_TO_VERIFY_LEAF_SIGNATURE")
+          throw new ErrorApiGetToken(500, "vCenter Certificate Error", "", error);
         throw new ErrorApiGetToken(500, "vCenter unreachable", "Please check your vCenter status", error);
       });
 
@@ -95,6 +97,8 @@ export class vCenter {
       .catch((error) => {
         console.error(error);
         if (error instanceof ErrorApiGetToken) throw error;
+        if (error.code === "UNABLE_TO_VERIFY_LEAF_SIGNATURE")
+          throw new ErrorApiGetToken(500, "vCenter Certificate Error", "", error);
         throw new ErrorApiGetToken(500, "vCenter unreachable", "Please check your vCenter status", error);
       });
 
@@ -135,6 +139,8 @@ export class vCenter {
       .catch((error) => {
         console.error(error);
         if (error instanceof ErrorApiGetToken) throw error;
+        if (error.code === "UNABLE_TO_VERIFY_LEAF_SIGNATURE")
+          throw new ErrorApiGetToken(500, "vCenter Certificate Error", "", error);
         throw new ErrorApiGetToken(500, "vCenter unreachable", "Please check your vCenter status", error);
       });
 
@@ -173,6 +179,8 @@ export class vCenter {
       .catch((error) => {
         console.error(error);
         if (error instanceof ErrorApiGetToken) throw error;
+        if (error.code === "UNABLE_TO_VERIFY_LEAF_SIGNATURE")
+          throw new ErrorApiGetToken(500, "vCenter Certificate Error", "", error);
         throw new ErrorApiGetToken(500, "vCenter unreachable", "Please check your vCenter status", error);
       });
 
@@ -221,6 +229,8 @@ export class vCenter {
       .catch((error) => {
         console.error(error);
         if (error instanceof ErrorApiGetToken) throw error;
+        if (error.code === "UNABLE_TO_VERIFY_LEAF_SIGNATURE")
+          throw new ErrorApiGetToken(500, "vCenter Certificate Error", "", error);
         throw new ErrorApiGetToken(500, "vCenter unreachable", "Please check your vCenter status", error);
       });
 
@@ -269,6 +279,8 @@ export class vCenter {
       .catch((error) => {
         console.error(error);
         if (error instanceof ErrorApiGetToken) throw error;
+        if (error.code === "UNABLE_TO_VERIFY_LEAF_SIGNATURE")
+          throw new ErrorApiGetToken(500, "vCenter Certificate Error", "", error);
         throw new ErrorApiGetToken(500, "vCenter unreachable", "Please check your vCenter status", error);
       });
 
@@ -311,6 +323,8 @@ export class vCenter {
       .catch((error) => {
         console.error(error);
         if (error instanceof ErrorApiGetToken) throw error;
+        if (error.code === "UNABLE_TO_VERIFY_LEAF_SIGNATURE")
+          throw new ErrorApiGetToken(500, "vCenter Certificate Error", "", error);
         throw new ErrorApiGetToken(500, "vCenter unreachable", "Please check your vCenter status", error);
       });
 
@@ -347,6 +361,8 @@ export class vCenter {
       .catch((error) => {
         console.error(error);
         if (error instanceof ErrorApiGetToken) throw error;
+        if (error.code === "UNABLE_TO_VERIFY_LEAF_SIGNATURE")
+          throw new ErrorApiGetToken(500, "vCenter Certificate Error", "", error);
         throw new ErrorApiGetToken(500, "vCenter unreachable", "Please check your vCenter status", error);
       });
 
@@ -381,6 +397,8 @@ export class vCenter {
       .catch((error) => {
         console.error(error);
         if (error instanceof ErrorApiGetToken) throw error;
+        if (error.code === "UNABLE_TO_VERIFY_LEAF_SIGNATURE")
+          throw new ErrorApiGetToken(500, "vCenter Certificate Error", "", error);
         throw new ErrorApiGetToken(500, "vCenter unreachable", "Please check your vCenter status", error);
       });
   }
@@ -417,6 +435,8 @@ export class vCenter {
       .catch((error) => {
         console.error(error);
         if (error instanceof ErrorApiGetToken) throw error;
+        if (error.code === "UNABLE_TO_VERIFY_LEAF_SIGNATURE")
+          throw new ErrorApiGetToken(500, "vCenter Certificate Error", "", error);
         throw new ErrorApiGetToken(500, "vCenter unreachable", "Please check your vCenter status", error);
       });
   }
@@ -459,6 +479,8 @@ export class vCenter {
       .catch((error) => {
         console.error(error);
         if (error instanceof ErrorApiGetToken) throw error;
+        if (error.code === "UNABLE_TO_VERIFY_LEAF_SIGNATURE")
+          throw new ErrorApiGetToken(500, "vCenter Certificate Error", "", error);
         throw new ErrorApiGetToken(500, "vCenter unreachable", "Please check your vCenter status", error);
       });
 
@@ -503,6 +525,8 @@ export class vCenter {
       .catch((error) => {
         console.error(error);
         if (error instanceof ErrorApiGetToken) throw error;
+        if (error.code === "UNABLE_TO_VERIFY_LEAF_SIGNATURE")
+          throw new ErrorApiGetToken(500, "vCenter Certificate Error", "", error);
         throw new ErrorApiGetToken(500, "vCenter unreachable", "Please check your vCenter status", error);
       });
 
@@ -547,6 +571,8 @@ export class vCenter {
       .catch((error) => {
         console.error(error);
         if (error instanceof ErrorApiGetToken) throw error;
+        if (error.code === "UNABLE_TO_VERIFY_LEAF_SIGNATURE")
+          throw new ErrorApiGetToken(500, "vCenter Certificate Error", "", error);
         throw new ErrorApiGetToken(500, "vCenter unreachable", "Please check your vCenter status", error);
       });
 

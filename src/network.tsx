@@ -2,11 +2,12 @@ import { vCenter } from "./api/vCenter";
 import { GetServer, GetSelectedServer } from "./api/function";
 import { NetworkSummary } from "./api/types";
 import * as React from "react";
-import { List, Toast, showToast, LocalStorage, Action, ActionPanel, Icon } from "@raycast/api";
+import { List, Toast, showToast, LocalStorage, Action, ActionPanel, Icon, getPreferenceValues } from "@raycast/api";
 import { usePromise } from "@raycast/utils";
 import ServerView from "./api/ServerView";
 
-process.env["NODE_TLS_REJECT_UNAUTHORIZED"] = "0";
+const pref = getPreferenceValues();
+if (!pref.certificate) process.env["NODE_TLS_REJECT_UNAUTHORIZED"] = "0";
 
 export default function Command(): JSX.Element {
   const { data: Server, revalidate: RevalidateServer, isLoading: IsLoadingServer } = usePromise(GetServer);
