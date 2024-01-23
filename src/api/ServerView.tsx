@@ -1,4 +1,4 @@
-import { GetServer } from "./function";
+import { GetServerLocalStorage } from "./function";
 import { Action, ActionPanel, Form, Icon, LocalStorage, Toast, showToast } from "@raycast/api";
 import { usePromise } from "@raycast/utils";
 import * as React from "react";
@@ -24,7 +24,7 @@ export default function ServerView(props: props): JSX.Element {
   const UsernameInfo = "vCenter Username";
   const PasswordInfo = "vCenter Password";
 
-  const { data: Server, isLoading: IsLoadingServer } = usePromise(GetServer);
+  const { data: Server, isLoading: IsLoadingServer } = usePromise(GetServerLocalStorage);
 
   const [NameError, SetNameError] = React.useState<string | undefined>();
   const [ServerError, SetServerError] = React.useState<string | undefined>();
@@ -36,8 +36,16 @@ export default function ServerView(props: props): JSX.Element {
    * @param event
    */
   function ValidateName(event: any): void {
-    const value = event.target.value;
+    const value: string = event.target.value;
     if (value && value.length > 0) {
+      if (value.toLowerCase() === "all") {
+        SetNameError("This Name Can't Be Used");
+        return;
+      }
+      if (value.indexOf("_") > -1) {
+        SetNameError("Character '_' can't be used");
+        return;
+      }
       if (!props.server && Server && Server.filter((c) => c.name === value).length > 0) {
         SetNameError("You Ave Already Used This Name");
         return;

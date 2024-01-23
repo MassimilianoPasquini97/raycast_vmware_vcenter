@@ -25,7 +25,11 @@ export class vCenter {
     this._token = "";
   }
 
-  async getToken(): Promise<void> {
+  GetFqdn(): string {
+    return this._fqdn;
+  }
+
+  private async getToken(): Promise<void> {
     const url = `https://${this._fqdn}/api/session`;
 
     const token = await fetch(url, {

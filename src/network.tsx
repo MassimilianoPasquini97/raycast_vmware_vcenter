@@ -1,13 +1,25 @@
 import { vCenter } from "./api/vCenter";
-import { GetServer, GetSelectedServer } from "./api/function";
-import { NetworkSummary } from "./api/types";
+import { GetServer, GetServerLocalStorage, GetSelectedServer } from "./api/function";
+import { Network } from "./api/types";
 import * as React from "react";
-import { List, Toast, showToast, LocalStorage, Action, ActionPanel, Icon, getPreferenceValues } from "@raycast/api";
+import {
+  List,
+  Toast,
+  showToast,
+  LocalStorage,
+  Cache,
+  Action,
+  ActionPanel,
+  Icon,
+  getPreferenceValues,
+} from "@raycast/api";
 import { usePromise } from "@raycast/utils";
 import ServerView from "./api/ServerView";
 
 const pref = getPreferenceValues();
 if (!pref.certificate) process.env["NODE_TLS_REJECT_UNAUTHORIZED"] = "0";
+
+const cache = new Cache();
 
 export default function Command(): JSX.Element {
   const { data: Server, revalidate: RevalidateServer, isLoading: IsLoadingServer } = usePromise(GetServer);
@@ -16,32 +28,51 @@ export default function Command(): JSX.Element {
     revalidate: RevalidateServerSelected,
     isLoading: IsLoadingServerSelected,
   } = usePromise(GetSelectedServer);
-  const vCenterApi = React.useRef<vCenter | undefined>();
-  const {
-    data: Networks,
-    revalidate: RevalidateNetworks,
-    isLoading: IsLoadingNetworks,
-  } = usePromise(GetNetworksList, [], {
-    execute: false,
-    onData: async () => {
-      await showToast({ style: Toast.Style.Success, title: "Data Loaded" });
-    },
-    onError: async (error) => {
-      await showToast({ style: Toast.Style.Failure, title: "Error", message: error.message });
-    },
-  });
+  const [Networks, SetNetworks]: [Network[], React.Dispatch<React.SetStateAction<Network[]>>] = React.useState(
+    [] as Network[]
+  );
+  const [IsLoadingNetworks, SetIsLoadingNetworks]: [boolean, React.Dispatch<React.SetStateAction<boolean>>] =
+    React.useState(false);
 
   /**
-   * Get All Network available on Current Server.
-   * @returns {Promise<NetworkSummary[]>}
+   * Set Networks.
+   * @returns {Promise<void>}
    */
-  async function GetNetworksList(): Promise<NetworkSummary[]> {
-    let network: NetworkSummary[] = [];
-    if (vCenterApi.current) {
-      const data = await vCenterApi.current.ListNetwork();
-      if (data) network = data;
+  async function GetNetworks(): Promise<void> {
+    if (Server && ServerSelected) {
+      SetIsLoadingNetworks(true);
+
+      let cached: Network[] | undefined;
+      const cachedj = cache.get(`network_${ServerSelected}_hosts`);
+      if (cachedj) cached = JSON.parse(cachedj);
+      if (Networks.length === 0 && cached) SetNetworks(cached);
+
+      let s: Map<string, vCenter> = Server;
+      if (ServerSelected !== "All") s = new Map([...s].filter(([k]) => k === ServerSelected));
+
+      const networks: Network[] = [];
+
+      await Promise.all(
+        [...s].map(async ([k, s]) => {
+          const networksSummary = await s.ListNetwork().catch(async (err) => {
+            await showToast({ style: Toast.Style.Failure, title: `${k} - Get Hosts:`, message: `${err}` });
+          });
+          if (networksSummary)
+            networksSummary.forEach((n) => {
+              networks.push({
+                server: k,
+                summary: n,
+              } as Network);
+            });
+        })
+      );
+
+      if (networks.length > 0) {
+        SetNetworks(networks);
+        cache.set(`network_${ServerSelected}_hosts`, JSON.stringify(networks));
+      }
+      SetIsLoadingNetworks(false);
     }
-    return network;
   }
   /**
    * Change Selected Server.
@@ -55,19 +86,51 @@ export default function Command(): JSX.Element {
    * Delete Selected Server.
    */
   async function DeleteSelectedServer() {
-    if (Server && Server.length > 1) {
-      const NewServer = Server.filter((c) => {
-        return c.name !== ServerSelected;
-      });
-      const NewServerSelected = Server[0].name;
-      await LocalStorage.setItem("server", JSON.stringify(NewServer));
-      await LocalStorage.setItem("server_selected", NewServerSelected);
+    if (Server && Object.keys(Server).length > 1) {
+      const OldServer = await GetServerLocalStorage();
+      if (OldServer) {
+        const NewServer = OldServer.filter((c) => {
+          return c.name !== ServerSelected;
+        });
+        const NewServerSelected = NewServer[0].name;
+        await LocalStorage.setItem("server", JSON.stringify(NewServer));
+        await LocalStorage.setItem("server_selected", NewServerSelected);
+      }
     } else if (Server) {
       await LocalStorage.removeItem("server");
       await LocalStorage.removeItem("server_selected");
     }
     RevalidateServer();
     RevalidateServerSelected();
+  }
+  /**
+   * Search Bar Accessory
+   * @param {Map<string, vCenter>} server.
+   * @returns {JSX.Element}
+   */
+  function GetSearchBar(server: Map<string, vCenter>): JSX.Element {
+    const keys = [...server.keys()];
+    if (keys.length > 1) keys.unshift("All");
+    return (
+      <List.Dropdown
+        tooltip="Available Server"
+        onChange={ChangeSelectedServer}
+        defaultValue={ServerSelected ? ServerSelected : undefined}
+      >
+        {keys.map((s) => (
+          <List.Dropdown.Item title={s} value={s} />
+        ))}
+      </List.Dropdown>
+    );
+  }
+  /**
+   * @param {Network} network.
+   * @returns {List.Item.Accessory[]}
+   */
+  function GetHostAccessory(network: Network): List.Item.Accessory[] {
+    const a: List.Item.Accessory[] = [];
+    if (ServerSelected === "All") a.push({ tag: network.server, icon: Icon.Building });
+    return a;
   }
   /**
    * Host Action Menu.
@@ -80,7 +143,7 @@ export default function Command(): JSX.Element {
           <Action
             title="Refresh"
             icon={Icon.Repeat}
-            onAction={RevalidateNetworks}
+            onAction={GetNetworks}
             shortcut={{ modifiers: ["cmd"], key: "r" }}
           />
         )}
@@ -101,11 +164,9 @@ export default function Command(): JSX.Element {
 
   React.useEffect(() => {
     if (Server && !IsLoadingServer && ServerSelected && !IsLoadingServerSelected) {
-      const cs = Server.filter((value) => value.name === ServerSelected)[0];
-      vCenterApi.current = new vCenter(cs.server, cs.username, cs.password);
-      RevalidateNetworks();
+      GetNetworks();
     } else if (Server && !IsLoadingServer && !ServerSelected && !IsLoadingServerSelected) {
-      const name = Server[0].name;
+      const name = Object.keys(Server)[0];
       LocalStorage.setItem("server_selected", name);
       RevalidateServerSelected();
     } else if (!IsLoadingServer && !Server) {
@@ -130,23 +191,16 @@ export default function Command(): JSX.Element {
     <List
       isLoading={IsLoadingServer || IsLoadingServerSelected || IsLoadingNetworks}
       actions={GetHostAction()}
-      searchBarAccessory={
-        <List.Dropdown
-          tooltip="Available Server"
-          onChange={ChangeSelectedServer}
-          defaultValue={ServerSelected ? ServerSelected : undefined}
-        >
-          {Server && Server.map((value) => <List.Dropdown.Item title={value.name} value={value.name} />)}
-        </List.Dropdown>
-      }
+      searchBarAccessory={Server && GetSearchBar(Server)}
     >
       {Networks &&
         Networks.map((network) => (
           <List.Item
-            key={network.network}
-            id={network.network}
-            title={network.name}
+            key={`${network.server}_${network.summary.network}`}
+            id={`${network.server}_${network.summary.network}`}
+            title={network.summary.name}
             icon={{ source: "icons/network/network.svg" }}
+            accessories={GetHostAccessory(network)}
             actions={GetHostAction()}
           />
         ))}

@@ -1,13 +1,25 @@
 import { vCenter } from "./api/vCenter";
-import { GetServer, GetSelectedServer } from "./api/function";
-import { DatastoreSummary } from "./api/types";
+import { GetServer, GetServerLocalStorage, GetSelectedServer } from "./api/function";
+import { Datastore } from "./api/types";
 import * as React from "react";
-import { ActionPanel, Action, Icon, List, Toast, showToast, LocalStorage, getPreferenceValues } from "@raycast/api";
+import {
+  ActionPanel,
+  Action,
+  Icon,
+  List,
+  Toast,
+  showToast,
+  LocalStorage,
+  Cache,
+  getPreferenceValues,
+} from "@raycast/api";
 import { usePromise } from "@raycast/utils";
 import ServerView from "./api/ServerView";
 
 const pref = getPreferenceValues();
 if (!pref.certificate) process.env["NODE_TLS_REJECT_UNAUTHORIZED"] = "0";
+
+const cache = new Cache();
 
 export default function Command(): JSX.Element {
   const { data: Server, revalidate: RevalidateServer, isLoading: IsLoadingServer } = usePromise(GetServer);
@@ -16,33 +28,53 @@ export default function Command(): JSX.Element {
     revalidate: RevalidateServerSelected,
     isLoading: IsLoadingServerSelected,
   } = usePromise(GetSelectedServer);
-  const vCenterApi = React.useRef<vCenter | undefined>();
-  const {
-    data: Datastores,
-    revalidate: RevalidateDatastores,
-    isLoading: IsLoadingDatastores,
-  } = usePromise(GetDatastoreList, [], {
-    execute: false,
-    onData: async () => {
-      await showToast({ style: Toast.Style.Success, title: "Data Loaded" });
-    },
-    onError: async (error) => {
-      await showToast({ style: Toast.Style.Failure, title: "Error", message: error.message });
-    },
-  });
+  const [Datastores, SetDatastores]: [Datastore[], React.Dispatch<React.SetStateAction<Datastore[]>>] = React.useState(
+    [] as Datastore[]
+  );
+  const [IsLoadingDatastores, SetIsLoadingDatastores]: [boolean, React.Dispatch<React.SetStateAction<boolean>>] =
+    React.useState(false);
+
   const [showDetail, setShowDetail]: [boolean, React.Dispatch<React.SetStateAction<boolean>>] = React.useState(false);
 
   /**
-   * Get All Datastore available on Current Server.
-   * @returns {Promise<DatastoreSummary[]>}
+   * Set Datastores.
+   * @returns {Promise<void>}
    */
-  async function GetDatastoreList(): Promise<DatastoreSummary[]> {
-    let datastore: DatastoreSummary[] = [];
-    if (vCenterApi.current) {
-      const data = await vCenterApi.current.ListDatastore();
-      if (data) datastore = data;
+  async function GetDatastores(): Promise<void> {
+    if (Server && ServerSelected) {
+      SetIsLoadingDatastores(true);
+
+      let cached: Datastore[] | undefined;
+      const cachedj = cache.get(`datastore_${ServerSelected}_hosts`);
+      if (cachedj) cached = JSON.parse(cachedj);
+      if (Datastores.length === 0 && cached) SetDatastores(cached);
+
+      let s: Map<string, vCenter> = Server;
+      if (ServerSelected !== "All") s = new Map([...s].filter(([k]) => k === ServerSelected));
+
+      const datastores: Datastore[] = [];
+
+      await Promise.all(
+        [...s].map(async ([k, s]) => {
+          const datastoreSummary = await s.ListDatastore().catch(async (err) => {
+            await showToast({ style: Toast.Style.Failure, title: `${k} - Get Datastores:`, message: `${err}` });
+          });
+          if (datastoreSummary)
+            datastoreSummary.forEach((d) => {
+              datastores.push({
+                server: k,
+                summary: d,
+              } as Datastore);
+            });
+        })
+      );
+
+      if (datastores.length > 0) {
+        SetDatastores(datastores);
+        cache.set(`datastore_${ServerSelected}_hosts`, JSON.stringify(datastores));
+      }
+      SetIsLoadingDatastores(false);
     }
-    return datastore;
   }
   /**
    * Change Selected Server.
@@ -56,19 +88,51 @@ export default function Command(): JSX.Element {
    * Delete Selected Server.
    */
   async function DeleteSelectedServer() {
-    if (Server && Server.length > 1) {
-      const NewServer = Server.filter((c) => {
-        return c.name !== ServerSelected;
-      });
-      const NewServerSelected = Server[0].name;
-      await LocalStorage.setItem("server", JSON.stringify(NewServer));
-      await LocalStorage.setItem("server_selected", NewServerSelected);
+    if (Server && Object.keys(Server).length > 1) {
+      const OldServer = await GetServerLocalStorage();
+      if (OldServer) {
+        const NewServer = OldServer.filter((c) => {
+          return c.name !== ServerSelected;
+        });
+        const NewServerSelected = NewServer[0].name;
+        await LocalStorage.setItem("server", JSON.stringify(NewServer));
+        await LocalStorage.setItem("server_selected", NewServerSelected);
+      }
     } else if (Server) {
       await LocalStorage.removeItem("server");
       await LocalStorage.removeItem("server_selected");
     }
     RevalidateServer();
     RevalidateServerSelected();
+  }
+  /**
+   * Search Bar Accessory
+   * @param {Map<string, vCenter>} server.
+   * @returns {JSX.Element}
+   */
+  function GetSearchBar(server: Map<string, vCenter>): JSX.Element {
+    const keys = [...server.keys()];
+    if (keys.length > 1) keys.unshift("All");
+    return (
+      <List.Dropdown
+        tooltip="Available Server"
+        onChange={ChangeSelectedServer}
+        defaultValue={ServerSelected ? ServerSelected : undefined}
+      >
+        {keys.map((s) => (
+          <List.Dropdown.Item title={s} value={s} />
+        ))}
+      </List.Dropdown>
+    );
+  }
+  /**
+   * @param {Datastore} datastore.
+   * @returns {List.Item.Accessory[]}
+   */
+  function GetDatastoreAccessory(datastore: Datastore): List.Item.Accessory[] {
+    const a: List.Item.Accessory[] = [];
+    if (ServerSelected === "All") a.push({ tag: datastore.server, icon: Icon.Building });
+    return a;
   }
 
   /**
@@ -89,7 +153,7 @@ export default function Command(): JSX.Element {
           <Action
             title="Refresh"
             icon={Icon.Repeat}
-            onAction={RevalidateDatastores}
+            onAction={GetDatastores}
             shortcut={{ modifiers: ["cmd"], key: "r" }}
           />
         )}
@@ -109,10 +173,10 @@ export default function Command(): JSX.Element {
   }
   /**
    * Datastore Detail Section.
-   * @param {number} index - Datastore index.
+   * @param {Datastore} datastore.
    * @returns {JSX.Element}
    */
-  function GetDatastoreDetail(index: number): JSX.Element {
+  function GetDatastoreDetail(datastore?: Datastore): JSX.Element {
     const capacity_tier: Map<string, number> = new Map([
       ["KB", 1e-3],
       ["MB", 1e-6],
@@ -124,13 +188,13 @@ export default function Command(): JSX.Element {
 
     capacity_tier.forEach((value, key) => {
       if (capacity === "Unknown") {
-        const s = Number(Datastores ? Datastores[index].capacity : 0) * value;
+        const s = Number(datastore ? datastore.summary.capacity : 0) * value;
         if (s < 1000 && s > 1) {
           capacity = `${s.toFixed(2)} ${key}`;
         }
       }
       if (free_space === "Unknown") {
-        const s = Number(Datastores ? Datastores[index].free_space : 0) * value;
+        const s = Number(datastore ? datastore.summary.free_space : 0) * value;
         if (s < 1000 && s > 1) {
           free_space = `${s.toFixed(2)} ${key}`;
         }
@@ -141,8 +205,8 @@ export default function Command(): JSX.Element {
       <List.Item.Detail
         metadata={
           <List.Item.Detail.Metadata>
-            <List.Item.Detail.Metadata.Label title="Name" text={Datastores ? Datastores[index].name : ""} />
-            <List.Item.Detail.Metadata.Label title="Type" text={Datastores ? Datastores[index].type : ""} />
+            <List.Item.Detail.Metadata.Label title="Name" text={datastore ? datastore.summary.name : ""} />
+            <List.Item.Detail.Metadata.Label title="Type" text={datastore ? datastore.summary.type : ""} />
             <List.Item.Detail.Metadata.Label title="Capacity" text={capacity} />
             <List.Item.Detail.Metadata.Label title="Free Space" text={free_space} />
           </List.Item.Detail.Metadata>
@@ -153,11 +217,9 @@ export default function Command(): JSX.Element {
 
   React.useEffect(() => {
     if (Server && !IsLoadingServer && ServerSelected && !IsLoadingServerSelected) {
-      const cs = Server.filter((value) => value.name === ServerSelected)[0];
-      vCenterApi.current = new vCenter(cs.server, cs.username, cs.password);
-      RevalidateDatastores();
+      GetDatastores();
     } else if (Server && !IsLoadingServer && !ServerSelected && !IsLoadingServerSelected) {
-      const name = Server[0].name;
+      const name = Object.keys(Server)[0];
       LocalStorage.setItem("server_selected", name);
       RevalidateServerSelected();
     } else if (!IsLoadingServer && !Server) {
@@ -183,24 +245,17 @@ export default function Command(): JSX.Element {
       isLoading={IsLoadingServer || IsLoadingServerSelected || IsLoadingDatastores}
       isShowingDetail={showDetail}
       actions={GetDatastoreAction()}
-      searchBarAccessory={
-        <List.Dropdown
-          tooltip="Available Server"
-          onChange={ChangeSelectedServer}
-          defaultValue={ServerSelected ? ServerSelected : undefined}
-        >
-          {Server && Server.map((value) => <List.Dropdown.Item title={value.name} value={value.name} />)}
-        </List.Dropdown>
-      }
+      searchBarAccessory={Server && GetSearchBar(Server)}
     >
       {Datastores &&
-        Datastores.map((datastore, index) => (
+        Datastores.map((datastore) => (
           <List.Item
-            key={datastore.datastore}
-            id={datastore.datastore}
-            title={datastore.name}
+            key={`${datastore.server}_${datastore.summary.datastore}`}
+            id={`${datastore.server}_${datastore.summary.datastore}`}
+            title={datastore.summary.name}
             icon={{ source: "icons/datastore/datastore.svg" }}
-            detail={GetDatastoreDetail(index)}
+            accessories={GetDatastoreAccessory(datastore)}
+            detail={GetDatastoreDetail(datastore)}
             actions={GetDatastoreAction()}
           />
         ))}

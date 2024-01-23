@@ -1,16 +1,15 @@
-import { vCenter } from "./api/vCenter";
 import {
-  VMInfo,
-  VMSummary,
+  Vm,
   VmPowerState,
-  VmStoragePolicyInfo,
   NetworkSummary,
   VMGuestPowerAction,
   VMPowerAction,
   StoragePoliciesSummary,
-  VMStoragePolicyComplianceInfo,
   VmStoragePolicyComplianceStatus,
+  VMInfo,
   VmGuestNetworkingInterfacesInfo,
+  VmStoragePolicyInfo,
+  VMStoragePolicyComplianceInfo,
 } from "./api/types";
 import {
   PowerModeIcons,
@@ -24,7 +23,7 @@ import {
   OsTextMetadata,
   OsIconsMetadata,
 } from "./api/ui";
-import { GetServer, GetSelectedServer } from "./api/function";
+import { GetServer, GetSelectedServer, GetServerLocalStorage } from "./api/function";
 import * as React from "react";
 import {
   List,
@@ -35,13 +34,17 @@ import {
   showToast,
   Color,
   LocalStorage,
+  Cache,
   getPreferenceValues,
 } from "@raycast/api";
 import { usePromise } from "@raycast/utils";
 import ServerView from "./api/ServerView";
+import { vCenter } from "./api/vCenter";
 
 const pref = getPreferenceValues();
 if (!pref.certificate) process.env["NODE_TLS_REJECT_UNAUTHORIZED"] = "0";
+
+const cache = new Cache();
 
 export default function Command(): JSX.Element {
   const { data: Server, revalidate: RevalidateServer, isLoading: IsLoadingServer } = usePromise(GetServer);
@@ -50,112 +53,174 @@ export default function Command(): JSX.Element {
     revalidate: RevalidateServerSelected,
     isLoading: IsLoadingServerSelected,
   } = usePromise(GetSelectedServer);
-  const vCenterApi = React.useRef<vCenter | undefined>();
-  const {
-    data: VMs,
-    revalidate: RevalidateVMs,
-    isLoading: IsLoadingVMs,
-  } = usePromise(GetVmList, [], {
-    execute: false,
-    onData: async () => {
-      await showToast({ style: Toast.Style.Success, title: "Data Loaded" });
-    },
-    onError: async (error) => {
-      await showToast({ style: Toast.Style.Failure, title: "Error", message: error.message });
-    },
-  });
-  const {
-    data: Networks,
-    revalidate: RevalidateNetworks,
-    isLoading: IsLoadingNetworks,
-  } = usePromise(GetNetworks, [], {
-    execute: false,
-    onError: async (error) => {
-      await showToast({ style: Toast.Style.Failure, title: "Error", message: error.message });
-    },
-  });
-  const {
-    data: StoragePolicies,
-    revalidate: RevalidateStoragePolicies,
-    isLoading: IsLoadingStoragePolicies,
-  } = usePromise(GetStoragePolicies, [], {
-    execute: false,
-    onError: async (error) => {
-      await showToast({ style: Toast.Style.Failure, title: "Error", message: error.message });
-    },
-  });
-  const [isLoading, setIsLoading]: [boolean, React.Dispatch<React.SetStateAction<boolean>>] = React.useState(false);
+
+  const [VMs, SetVMs]: [Vm[], React.Dispatch<React.SetStateAction<Vm[]>>] = React.useState([] as Vm[]);
+  const [IsLoadingVMs, SetIsLoadingVMs]: [boolean, React.Dispatch<React.SetStateAction<boolean>>] =
+    React.useState(false);
+  const CacheVMs: React.MutableRefObject<Map<string, Date>> = React.useRef(new Map());
+  const [SelectedVM, SetSelectedVM]: [string, React.Dispatch<React.SetStateAction<string>>] = React.useState("");
+  const [Networks, SetNetworks]: [
+    Map<string, NetworkSummary[]>,
+    React.Dispatch<React.SetStateAction<Map<string, NetworkSummary[]>>>
+  ] = React.useState(new Map());
+  const [IsLoadingNetworks, SetIsLoadingNetworks]: [boolean, React.Dispatch<React.SetStateAction<boolean>>] =
+    React.useState(false);
+  const [StoragePolicies, SetStoragePolicies]: [
+    Map<string, StoragePoliciesSummary[]>,
+    React.Dispatch<React.SetStateAction<Map<string, StoragePoliciesSummary[]>>>
+  ] = React.useState(new Map());
+  const [IsLoadingStoragePolicies, SetIsLoadingStoragePolicies]: [
+    boolean,
+    React.Dispatch<React.SetStateAction<boolean>>
+  ] = React.useState(false);
+
   const [showDetail, setShowDetail]: [boolean, React.Dispatch<React.SetStateAction<boolean>>] = React.useState(false);
-  const [selectedVM, setSelectedVM]: [string, React.Dispatch<React.SetStateAction<string>>] = React.useState("");
-  const [VMsInfo, setVMsInfo]: [Map<string, VMInfo>, React.Dispatch<React.SetStateAction<Map<string, VMInfo>>>] =
-    React.useState(new Map());
-  const [VMsGuestNetworkingInterfaces, setVMsGuestNetworkingInterfaces]: [
-    Map<string, VmGuestNetworkingInterfacesInfo[]>,
-    React.Dispatch<React.SetStateAction<Map<string, VmGuestNetworkingInterfacesInfo[]>>>
-  ] = React.useState(new Map());
-  const [VMsStoragePolicy, setVMsStoragePolicy]: [
-    Map<string, VmStoragePolicyInfo>,
-    React.Dispatch<React.SetStateAction<Map<string, VmStoragePolicyInfo>>>
-  ] = React.useState(new Map());
-  const [VMsStoragePolicyCompliance, setVMsStoragePolicyCompliance]: [
-    Map<string, VMStoragePolicyComplianceInfo>,
-    React.Dispatch<React.SetStateAction<Map<string, VMStoragePolicyComplianceInfo>>>
-  ] = React.useState(new Map());
 
   /**
-   * Get All VM available on Current Server.
-   * @returns {Promise<VMSummary[]>}
+   * Set VMs.
+   * @returns {Promise<void>}
    */
-  async function GetVmList(): Promise<VMSummary[]> {
-    let vms: VMSummary[] = [];
-    if (vCenterApi.current) {
-      const data = await vCenterApi.current.ListVM();
-      if (data) vms = data;
+  async function GetVMs(): Promise<void> {
+    if (Server && ServerSelected) {
+      SetIsLoadingVMs(true);
+
+      let cached: Vm[] | undefined;
+      const cachedj = cache.get(`vm_${ServerSelected}_vms`);
+      if (cachedj) cached = JSON.parse(cachedj);
+      if (VMs.length === 0 && cached) SetVMs(cached);
+
+      let s: Map<string, vCenter> = Server;
+      if (ServerSelected !== "All") s = new Map([...s].filter(([k]) => k === ServerSelected));
+
+      const vms: Vm[] = [];
+
+      await Promise.all(
+        [...s].map(async ([k, s]) => {
+          const vmSummary = await s.ListVM().catch(async (err) => {
+            await showToast({ style: Toast.Style.Failure, title: `${k} - Get VMs:`, message: `${err}` });
+          });
+          if (vmSummary)
+            vmSummary.forEach((v) => {
+              let c: Vm[] | undefined;
+              if (cached) c = cached.filter((vc) => vc.server === k && vc.summary.vm === v.vm);
+              let vm_info: VMInfo | undefined;
+              let interfaces_info: VmGuestNetworkingInterfacesInfo[] | undefined;
+              let storage_policy_info: VmStoragePolicyInfo | undefined;
+              let storage_policy_compliance_info: VMStoragePolicyComplianceInfo | undefined;
+              if (c && c.length === 1) {
+                vm_info = c[0].vm_info;
+                interfaces_info = c[0].interfaces_info;
+                storage_policy_info = c[0].storage_policy_info;
+                storage_policy_compliance_info = c[0].storage_policy_compliance_info;
+              }
+              vms.push({
+                server: k,
+                summary: v,
+                vm_info: vm_info,
+                interfaces_info: interfaces_info,
+                storage_policy_info: storage_policy_info,
+                storage_policy_compliance_info: storage_policy_compliance_info,
+              } as Vm);
+            });
+        })
+      );
+
+      if (vms.length > 0) {
+        SetVMs(vms);
+        cache.set(`vm_${ServerSelected}_vms`, JSON.stringify(vms));
+      }
+      SetIsLoadingVMs(false);
     }
-    return vms;
   }
   /**
-   * Get All Network available on Current Server.
-   * @returns {Promise<NetworkSummary[]>}
+   * Set Networks.
+   * @returns {Promise<void>}
    */
-  async function GetNetworks(): Promise<NetworkSummary[]> {
-    let networks: NetworkSummary[] = [];
-    if (vCenterApi.current) {
-      const data = await vCenterApi.current.ListNetwork();
-      if (data) networks = data;
+  async function GetNetworks(): Promise<void> {
+    if (Server && ServerSelected) {
+      SetIsLoadingNetworks(true);
+
+      if ([...Networks.keys()].length === 0) {
+        const cached = cache.get(`vm_${ServerSelected as string}_networks`);
+        if (cached) SetNetworks(new Map(Object.entries(JSON.parse(cached))));
+      }
+
+      let s: Map<string, vCenter> = Server;
+      if (ServerSelected !== "All") s = new Map([...s].filter(([k]) => k === ServerSelected));
+
+      const networks: Map<string, NetworkSummary[]> = new Map();
+      await Promise.all(
+        [...s].map(async ([k, s]) => {
+          const o = await s.ListNetwork().catch(async (err) => {
+            await showToast({ style: Toast.Style.Failure, title: `${k} - Get Networks:`, message: `${err}` });
+          });
+          if (o) networks.set(k, o);
+        })
+      );
+      if ([...networks.keys()].length > 0) {
+        SetNetworks(networks);
+        cache.set(`vm_${ServerSelected as string}_networks`, JSON.stringify(Object.fromEntries(networks)));
+      }
+
+      SetIsLoadingNetworks(false);
     }
-    return networks;
   }
   /**
-   * Get All Storage Policies available on Current Server.
-   * @returns {Promise<StoragePoliciesSummary[]>}
+   * Set Storage Policies.
+   * @returns {Promise<void>}
    */
-  async function GetStoragePolicies(): Promise<StoragePoliciesSummary[]> {
-    let storagePolicies: StoragePoliciesSummary[] = [];
-    if (vCenterApi.current) {
-      const data = await vCenterApi.current.GetStoragePolicy();
-      if (data) storagePolicies = data;
+  async function GetStoragePolicies(): Promise<void> {
+    if (Server && ServerSelected) {
+      SetIsLoadingStoragePolicies(true);
+
+      if ([...StoragePolicies.keys()].length === 0) {
+        const cached = cache.get(`vm_${ServerSelected as string}_storage_policies`);
+        if (cached) SetStoragePolicies(new Map(Object.entries(JSON.parse(cached))));
+      }
+
+      let s: Map<string, vCenter> = Server;
+      if (ServerSelected !== "All") s = new Map([...s].filter(([k]) => k === ServerSelected));
+
+      const storagePolicies: Map<string, StoragePoliciesSummary[]> = new Map();
+      await Promise.all(
+        [...s].map(async ([k, s]) => {
+          const o = await s.GetStoragePolicy().catch(async (err) => {
+            await showToast({ style: Toast.Style.Failure, title: `${k} - 'Get Sorage':`, message: `${err}` });
+          });
+          if (o) storagePolicies.set(k, o);
+        })
+      );
+
+      if ([...storagePolicies.keys()].length > 0) {
+        SetStoragePolicies(storagePolicies);
+        cache.set(
+          `vm_${ServerSelected as string}_storage_policies`,
+          JSON.stringify(Object.fromEntries(storagePolicies))
+        );
+      }
+
+      SetIsLoadingStoragePolicies(false);
     }
-    return storagePolicies;
   }
   /**
    * Get Network Name.
+   * @param {string} server - vCenter Server Name.
    * @param {string} network - Network Identifier.
    * @returns
    */
-  function GetNetworkName(network: string): string {
-    if (Networks) {
-      const filter = Networks.filter((net) => net.network === network);
-      if (filter.length > 0) return filter[0].name;
+  function GetNetworkName(server: string, network: string): string {
+    if (Networks && Networks.has(server)) {
+      const filter = Networks.get(server)?.filter((net) => net.network === network);
+      if (filter && filter.length > 0) return filter[0].name;
     }
     return network;
   }
   /**
    * Perform Power Action on VM Using Guest Tools.
-   * @param {string} vm - vm identifier.
+   * @param {Vm} vm.
    * @param {VMGuestPowerAction} action - action to perform.
    */
-  async function VMGuestAction(vm: string, action: VMGuestPowerAction): Promise<void> {
+  async function VMGuestAction(vm: Vm, action: VMGuestPowerAction): Promise<void> {
     const MessageGuestActionStarted: Map<VMGuestPowerAction, string> = new Map([
       [VMGuestPowerAction.REBOOT, `Rebooting`],
       [VMGuestPowerAction.SHUTDOWN, `Shuting Down`],
@@ -166,33 +231,95 @@ export default function Command(): JSX.Element {
       [VMGuestPowerAction.SHUTDOWN, `Powered Off`],
       [VMGuestPowerAction.STANDBUY, `Suspended`],
     ]);
+    if (!vm.vm_info) {
+      await showToast({
+        style: Toast.Style.Failure,
+        title: "Vm Info is Undefined",
+      });
+      return;
+    }
+    if (!Server || Server.has(vm.summary.vm)) {
+      await showToast({
+        style: Toast.Style.Failure,
+        title: "vCenter Server is Undefined",
+      });
+      return;
+    }
     await showToast({
       style: Toast.Style.Animated,
-      title: `${VMsInfo.get(vm)?.name}`,
+      title: `${vm.summary.name}`,
       message: `${MessageGuestActionStarted.get(action)}`,
     });
-    if (vCenterApi.current)
-      await vCenterApi.current
-        .VMGuestPower(vm, action)
+    const s = Server.get(vm.summary.vm);
+    if (s)
+      await s
+        .VMGuestPower(vm.summary.vm, action)
         .then(
           async () =>
             await showToast({
               style: Toast.Style.Success,
-              title: `${VMsInfo.get(vm)?.name}`,
+              title: `${vm.summary.name}`,
               message: `${MessageGuestActionFinished.get(action)}`,
             })
         )
         .catch(
           async (error) =>
-            await showToast({ style: Toast.Style.Failure, title: `${VMsInfo.get(vm)?.name}`, message: `${error}` })
+            await showToast({ style: Toast.Style.Failure, title: `${vm.summary.name}`, message: `${error}` })
         );
   }
   /**
+   * Update Vm info if showDetail is true and vm data is not present or outdated.
+   * @param {string | null} id - vm identifier.
+   * @param {boolean} forced - set to true for force update.
+   * @returns {Promise<void>}
+   */
+  async function GetVmInfo(id: string | null, forced = false): Promise<void> {
+    if (id) SetSelectedVM(id);
+    if (id && (showDetail || forced) && Server) {
+      const now = new Date();
+      const lastUpdate = CacheVMs.current.get(id);
+      if (forced || !lastUpdate || lastUpdate.getTime() - now.getTime() < -300000) {
+        SetIsLoadingVMs(true);
+        const ids = id.split("_");
+        const s = Server.get(ids[0]);
+        const v = ids[1];
+        if (s) {
+          const vm_info = await s.GetVM(v).catch(async (err) => {
+            await showToast({ style: Toast.Style.Failure, title: `${ids[0]}`, message: `${err}` });
+          });
+          const interfaces_info = await s.GetVMGuestNetworkingInterfaces(v).catch(async (err) => {
+            await showToast({ style: Toast.Style.Failure, title: `${ids[0]}`, message: `${err}` });
+          });
+          const storage_policy_info = await s.GetVMStoragePolicy(v).catch(async (err) => {
+            await showToast({ style: Toast.Style.Failure, title: `${ids[0]}`, message: `${err}` });
+          });
+          const storage_policy_compliance_info = await s.GetVMStoragePolicyCompliance(v).catch(async (err) => {
+            await showToast({ style: Toast.Style.Failure, title: `${ids[0]}`, message: `${err}` });
+          });
+          SetVMs((prev) => {
+            const i = prev.findIndex((vm) => vm.server === ids[0] && vm.summary.vm === v);
+            if (i > -1) {
+              if (vm_info) prev[i].vm_info = vm_info;
+              if (interfaces_info) prev[i].interfaces_info = interfaces_info;
+              if (storage_policy_info) prev[i].storage_policy_info = storage_policy_info;
+              if (storage_policy_compliance_info)
+                prev[i].storage_policy_compliance_info = storage_policy_compliance_info;
+            }
+            cache.set(`vm_${ServerSelected}_vms`, JSON.stringify(prev));
+            return [...prev];
+          });
+          SetIsLoadingVMs(false);
+          CacheVMs.current.set(id, now);
+        }
+      }
+    }
+  }
+  /**
    * Perform Power Action on VM.
-   * @param {string} vm - vm identifier.
+   * @param {Vm} vm.
    * @param {VMPowerAction} action - action to perform.
    */
-  async function VMAction(vm: string, action: VMPowerAction): Promise<void> {
+  async function VMAction(vm: Vm, action: VMPowerAction): Promise<void> {
     const MessageActionStarted: Map<VMPowerAction, string> = new Map([
       [VMPowerAction.RESET, `Rebooting`],
       [VMPowerAction.START, `Starting`],
@@ -205,25 +332,40 @@ export default function Command(): JSX.Element {
       [VMPowerAction.STOP, `Powered Off`],
       [VMPowerAction.SUSPEND, `Suspended`],
     ]);
+    if (!vm.vm_info) {
+      await showToast({
+        style: Toast.Style.Failure,
+        title: "Vm Info is Undefined",
+      });
+      return;
+    }
+    if (!Server || Server.has(vm.summary.vm)) {
+      await showToast({
+        style: Toast.Style.Failure,
+        title: "vCenter Server is Undefined",
+      });
+      return;
+    }
     await showToast({
       style: Toast.Style.Animated,
-      title: `${VMsInfo.get(vm)?.name}`,
+      title: `${vm.vm_info.name}`,
       message: `${MessageActionStarted.get(action)}`,
     });
-    if (vCenterApi.current)
-      await vCenterApi.current
-        .VMPower(vm, action)
+    const s = Server.get(vm.summary.vm);
+    if (s)
+      await s
+        .VMPower(vm.summary.vm, action)
         .then(
           async () =>
             await showToast({
               style: Toast.Style.Success,
-              title: `${VMsInfo.get(vm)?.name}`,
+              title: `${vm.summary.name}`,
               message: `${MessageActionFinished.get(action)}`,
             })
         )
         .catch(
           async (error) =>
-            await showToast({ style: Toast.Style.Failure, title: `${VMsInfo.get(vm)?.name}`, message: `${error}` })
+            await showToast({ style: Toast.Style.Failure, title: `${vm.summary.name}`, message: `${error}` })
         );
   }
   /**
@@ -232,19 +374,25 @@ export default function Command(): JSX.Element {
    */
   async function ChangeSelectedServer(value: string) {
     await LocalStorage.setItem("server_selected", value);
+    SetVMs([]);
+    SetNetworks(new Map());
+    SetStoragePolicies(new Map());
     RevalidateServerSelected();
   }
   /**
    * Delete Selected Server.
    */
   async function DeleteSelectedServer() {
-    if (Server && Server.length > 1) {
-      const NewServer = Server.filter((c) => {
-        return c.name !== ServerSelected;
-      });
-      const NewServerSelected = Server[0].name;
-      await LocalStorage.setItem("server", JSON.stringify(NewServer));
-      await LocalStorage.setItem("server_selected", NewServerSelected);
+    if (Server && Object.keys(Server).length > 1) {
+      const OldServer = await GetServerLocalStorage();
+      if (OldServer) {
+        const NewServer = OldServer.filter((c) => {
+          return c.name !== ServerSelected;
+        });
+        const NewServerSelected = NewServer[0].name;
+        await LocalStorage.setItem("server", JSON.stringify(NewServer));
+        await LocalStorage.setItem("server_selected", NewServerSelected);
+      }
     } else if (Server) {
       await LocalStorage.removeItem("server");
       await LocalStorage.removeItem("server_selected");
@@ -253,11 +401,54 @@ export default function Command(): JSX.Element {
     RevalidateServerSelected();
   }
   /**
-   * VM Action Menu.
-   * @param {string} vm - vm identifier.
+   * Search Bar Accessory
+   * @param {Map<string, vCenter>} server.
    * @returns {JSX.Element}
    */
-  function GetVMAction(vm?: string): JSX.Element {
+  function GetSearchBar(server: Map<string, vCenter>): JSX.Element {
+    const keys = [...server.keys()];
+    if (keys.length > 1) keys.unshift("All");
+    return (
+      <List.Dropdown
+        tooltip="Available Server"
+        onChange={ChangeSelectedServer}
+        defaultValue={ServerSelected ? ServerSelected : undefined}
+      >
+        {keys.map((s) => (
+          <List.Dropdown.Item title={s} value={s} />
+        ))}
+      </List.Dropdown>
+    );
+  }
+  /**
+   * @param {Vm} vm.
+   * @returns {string[]} Array of search keywords
+   */
+  function GetVmKeywords(vm: Vm): string[] {
+    const k: string[] = [];
+    if (vm.vm_info?.guest_OS) k.push(vm.vm_info.guest_OS);
+    if (vm.interfaces_info)
+      vm.interfaces_info.forEach((i) => {
+        if (i.ip) i.ip.ip_addresses.forEach((a) => k.push(a.ip_address));
+      });
+    return k;
+  }
+  /**
+   * @param {Vm} vm.
+   * @returns {List.Item.Accessory[]}
+   */
+  function GetVmAccessory(vm: Vm): List.Item.Accessory[] {
+    const a: List.Item.Accessory[] = [];
+    if (ServerSelected === "All") a.push({ tag: vm.server, icon: Icon.Building });
+    if (vm.vm_info?.guest_OS) a.push({ icon: OsIconsMetadata.get(vm.vm_info.guest_OS as string) });
+    return a;
+  }
+  /**
+   * VM Action Menu.
+   * @param {Vm} vm.
+   * @returns {JSX.Element}
+   */
+  function GetVMAction(vm?: Vm): JSX.Element {
     if (vm)
       return (
         <ActionPanel title="vCenter VM">
@@ -272,71 +463,86 @@ export default function Command(): JSX.Element {
             <Action
               title="Refresh"
               icon={Icon.Repeat}
-              onAction={RevalidateVMs}
+              onAction={() => GetVmInfo(SelectedVM, true)}
               shortcut={{ modifiers: ["cmd"], key: "r" }}
             />
           )}
-          <Action.OpenInBrowser
-            title="Open on vCenter Web"
-            url={`https://${
-              Server && ServerSelected ? Server.filter((value) => value.name === ServerSelected)[0].server : ""
-            }/ui/app/vm;nav=v/urn:vmomi:VirtualMachine:${vm}:${VMsInfo.get(vm)?.identity?.instance_uuid}/summary`}
-            shortcut={{ modifiers: ["cmd"], key: "b" }}
-          />
-          <Action.Open
-            title="Open Console"
-            icon={{ source: "icons/vm/console.svg" }}
-            target={`vmrc://${
-              Server && ServerSelected ? Server.filter((value) => value.name === ServerSelected)[0].server : ""
-            }/?moid=${vm}`}
-            shortcut={{ modifiers: ["cmd"], key: "y" }}
-          />
+          {vm.vm_info && Server && Server.has(vm.server) && (
+            <Action.OpenInBrowser
+              title="Open on vCenter Web"
+              url={`https://${Server.get(vm.server)?.GetFqdn()}/ui/app/vm;nav=v/urn:vmomi:VirtualMachine:${
+                vm.summary.vm
+              }:${vm.vm_info.identity?.instance_uuid}/summary`}
+              shortcut={{ modifiers: ["cmd"], key: "b" }}
+            />
+          )}
+          {Server && Server.has(vm.server) && (
+            <Action.Open
+              title="Open Console"
+              icon={{ source: "icons/vm/console.svg" }}
+              target={`vmrc://${Server.get(vm.server)?.GetFqdn()}/?moid=${vm.summary.vm}`}
+              shortcut={{ modifiers: ["cmd"], key: "y" }}
+            />
+          )}
+          {vm.interfaces_info &&
+            vm.interfaces_info.length > 0 &&
+            vm.interfaces_info[0].ip?.ip_addresses &&
+            vm.interfaces_info[0].ip.ip_addresses.length > 0 && (
+              <Action.Open
+                title="Open RDP"
+                icon={{ source: Icon.Binoculars }}
+                target={`rdp://screen%20mode%20id=i%3A1&full%20address=s%3A${vm.interfaces_info[0].ip?.ip_addresses[0].ip_address}`}
+                shortcut={{ modifiers: ["cmd"], key: "u" }}
+              />
+            )}
           <Action.CopyToClipboard
             title="Copy Name"
             icon={Icon.Clipboard}
-            content={VMsInfo.get(vm)?.name as string}
+            content={vm.summary.name as string}
             shortcut={{ modifiers: ["cmd"], key: "n" }}
           />
-          {VMsGuestNetworkingInterfaces.get(vm)?.[0].ip?.ip_addresses[0].ip_address && (
+          {vm.interfaces_info && vm.interfaces_info.length > 0 && (
             <Action.CopyToClipboard
               title="Copy IP"
               icon={Icon.Clipboard}
-              content={VMsGuestNetworkingInterfaces.get(vm)?.[0].ip?.ip_addresses[0].ip_address as string}
+              content={vm.interfaces_info[0].ip?.ip_addresses[0].ip_address as string}
               shortcut={{ modifiers: ["cmd"], key: "i" }}
             />
           )}
-          <ActionPanel.Section title="Power">
-            <Action
-              title="Power On"
-              icon={VMPowerActionIcons.get(VMPowerAction.START)}
-              onAction={() => VMAction(vm, VMPowerAction.START)}
-            />
-            <Action
-              title="Power Off"
-              icon={VMPowerActionIcons.get(VMPowerAction.STOP)}
-              onAction={() => VMAction(vm, VMPowerAction.STOP)}
-            />
-            <Action
-              title="Suspend"
-              icon={VMPowerActionIcons.get(VMPowerAction.SUSPEND)}
-              onAction={() => VMAction(vm, VMPowerAction.SUSPEND)}
-            />
-            <Action
-              title="Reset"
-              icon={VMPowerActionIcons.get(VMPowerAction.RESET)}
-              onAction={() => VMAction(vm, VMPowerAction.RESET)}
-            />
-            <Action
-              title="Shut Down Guest OS"
-              icon={VMGuestPowerActionIcons.get(VMGuestPowerAction.SHUTDOWN)}
-              onAction={() => VMGuestAction(vm, VMGuestPowerAction.SHUTDOWN)}
-            />
-            <Action
-              title="Restart Guest OS"
-              icon={VMGuestPowerActionIcons.get(VMGuestPowerAction.REBOOT)}
-              onAction={() => VMGuestAction(vm, VMGuestPowerAction.REBOOT)}
-            />
-          </ActionPanel.Section>
+          {Server && Server.has(vm.server) && (
+            <ActionPanel.Section title="Power">
+              <Action
+                title="Power On"
+                icon={VMPowerActionIcons.get(VMPowerAction.START)}
+                onAction={() => VMAction(vm, VMPowerAction.START)}
+              />
+              <Action
+                title="Power Off"
+                icon={VMPowerActionIcons.get(VMPowerAction.STOP)}
+                onAction={() => VMAction(vm, VMPowerAction.STOP)}
+              />
+              <Action
+                title="Suspend"
+                icon={VMPowerActionIcons.get(VMPowerAction.SUSPEND)}
+                onAction={() => VMAction(vm, VMPowerAction.SUSPEND)}
+              />
+              <Action
+                title="Reset"
+                icon={VMPowerActionIcons.get(VMPowerAction.RESET)}
+                onAction={() => VMAction(vm, VMPowerAction.RESET)}
+              />
+              <Action
+                title="Shut Down Guest OS"
+                icon={VMGuestPowerActionIcons.get(VMGuestPowerAction.SHUTDOWN)}
+                onAction={() => VMGuestAction(vm, VMGuestPowerAction.SHUTDOWN)}
+              />
+              <Action
+                title="Restart Guest OS"
+                icon={VMGuestPowerActionIcons.get(VMGuestPowerAction.REBOOT)}
+                onAction={() => VMGuestAction(vm, VMGuestPowerAction.REBOOT)}
+              />
+            </ActionPanel.Section>
+          )}
           <ActionPanel.Section title="vCenter Server">
             <Action
               title="Add Server"
@@ -354,12 +560,7 @@ export default function Command(): JSX.Element {
     return (
       <ActionPanel title="vCenter VM">
         {!IsLoadingVMs && (
-          <Action
-            title="Refresh"
-            icon={Icon.Repeat}
-            onAction={RevalidateVMs}
-            shortcut={{ modifiers: ["cmd"], key: "r" }}
-          />
+          <Action title="Refresh" icon={Icon.Repeat} onAction={GetVMs} shortcut={{ modifiers: ["cmd"], key: "r" }} />
         )}
         <ActionPanel.Section title="vCenter Server">
           <Action
@@ -380,37 +581,39 @@ export default function Command(): JSX.Element {
    * @param {string} vm - vm identifier.
    * @returns {JSX.Element}
    */
-  function GetVmDetail(vm: string): JSX.Element {
-    const vminfo = VMsInfo.get(vm);
+  function GetVmDetail(vm: Vm): JSX.Element {
+    if (!vm.vm_info) return <List.Item.Detail></List.Item.Detail>;
 
-    if (!vminfo) return <List.Item.Detail></List.Item.Detail>;
-
-    const cdroms = Object.values(vminfo.cdroms);
-    const diskids = Object.keys(vminfo.disks);
+    const cdroms = Object.values(vm.vm_info.cdroms);
+    const diskids = Object.keys(vm.vm_info.disks);
     let diskstotal = 0;
-    const nics = Object.values(vminfo.nics);
+    const nics = Object.values(vm.vm_info.nics);
 
     return (
       <List.Item.Detail
         metadata={
           <List.Item.Detail.Metadata>
-            <List.Item.Detail.Metadata.Label title="Name" text={vminfo.name} />
+            <List.Item.Detail.Metadata.Label title="Name" text={vm.vm_info.name} />
             <List.Item.Detail.Metadata.Label
               title="Power State"
-              icon={PowerModeIconsMetadata.get(vminfo.power_state as VmPowerState)}
-              text={PowerModeTextMetadata.get(vminfo.power_state as VmPowerState)}
+              icon={PowerModeIconsMetadata.get(vm.vm_info.power_state as VmPowerState)}
+              text={PowerModeTextMetadata.get(vm.vm_info.power_state as VmPowerState)}
             />
             <List.Item.Detail.Metadata.Label
               title="OS"
-              icon={OsIconsMetadata.get(vminfo.guest_OS as string)}
-              text={OsTextMetadata.get(vminfo.guest_OS as string)}
+              icon={OsIconsMetadata.get(vm.vm_info.guest_OS as string)}
+              text={OsTextMetadata.get(vm.vm_info.guest_OS as string)}
             />
-            <List.Item.Detail.Metadata.Label title="Boot" text={`${vminfo.boot.type}`} />
-            <List.Item.Detail.Metadata.Label title="Cpu" icon={Icon.ComputerChip} text={`${vminfo.cpu.count} cores`} />
+            <List.Item.Detail.Metadata.Label title="Boot" text={`${vm.vm_info.boot.type}`} />
+            <List.Item.Detail.Metadata.Label
+              title="Cpu"
+              icon={Icon.ComputerChip}
+              text={`${vm.vm_info.cpu.count} cores`}
+            />
             <List.Item.Detail.Metadata.Label
               title="Memory"
               icon={Icon.MemoryChip}
-              text={`${vminfo.memory.size_MiB / 1024} GB`}
+              text={`${vm.vm_info.memory.size_MiB / 1024} GB`}
             />
             {cdroms.length > 0 &&
               cdroms.map((cdrom) => {
@@ -426,40 +629,45 @@ export default function Command(): JSX.Element {
               })}
             <List.Item.Detail.Metadata.Separator />
             {diskids.map((id) => {
-              diskstotal = diskstotal + (vminfo.disks[id].capacity as number);
-              const storagePolicyFiltered = StoragePolicies
-                ? StoragePolicies.filter((policy) => policy.policy === VMsStoragePolicy.get(vm)?.disks[id])
-                : [];
+              if (vm.vm_info) diskstotal = diskstotal + (vm.vm_info.disks[id].capacity as number);
+              const storagePolicyFiltered =
+                StoragePolicies && StoragePolicies.get(vm.server)
+                  ? StoragePolicies.get(vm.server)?.filter((policy) =>
+                      vm.storage_policy_info ? policy.policy === vm.storage_policy_info.disks[id] : false
+                    )
+                  : [];
               return (
                 <React.Fragment>
-                  <List.Item.Detail.Metadata.Label
-                    key={`${vminfo.disks[id].label} Capacity`}
-                    title={`${vminfo.disks[id].label} Capacity`}
-                    icon={Icon.HardDrive}
-                    text={`${((vminfo.disks[id].capacity as number) / 1e9).toFixed(0)} GiB`}
-                  />
-                  {(VMsStoragePolicy.has(vm) || VMsStoragePolicyCompliance.has(vm)) && (
+                  {vm.vm_info && (
+                    <List.Item.Detail.Metadata.Label
+                      key={`${vm.vm_info.disks[id].label} Capacity`}
+                      title={`${vm.vm_info.disks[id].label} Capacity`}
+                      icon={Icon.HardDrive}
+                      text={`${((vm.vm_info.disks[id].capacity as number) / 1e9).toFixed(0)} GiB`}
+                    />
+                  )}
+                  {(vm.storage_policy_info || vm.storage_policy_compliance_info) && (
                     <List.Item.Detail.Metadata.TagList title="Storage Policy">
-                      {VMsStoragePolicy.has(vm) && (
+                      {vm.storage_policy_info && storagePolicyFiltered && storagePolicyFiltered.length > 0 && (
                         <List.Item.Detail.Metadata.TagList.Item
-                          key={`Storage Policy: ${VMsStoragePolicy.get(vm)?.disks[id]}`}
-                          text={`${storagePolicyFiltered.length > 0 && storagePolicyFiltered[0].name}`}
+                          key={`Storage Policy: ${vm.storage_policy_info.disks[id]}`}
+                          text={`${storagePolicyFiltered[0].name}`}
                           color={Color.Blue}
                           icon={Icon.CodeBlock}
                         />
                       )}
-                      {VMsStoragePolicyCompliance.has(vm) && (
+                      {vm.storage_policy_compliance_info && (
                         <List.Item.Detail.Metadata.TagList.Item
-                          key={`Storage Policy Compliance: ${VMsStoragePolicyCompliance.get(vm)?.disks[id].status}`}
+                          key={`Storage Policy Compliance: ${vm.storage_policy_compliance_info.disks[id].status}`}
                           text={`${VMStoragePolicyComplianceText.get(
-                            VMsStoragePolicyCompliance.get(vm)?.disks[id].status as VmStoragePolicyComplianceStatus
+                            vm.storage_policy_compliance_info.disks[id].status as VmStoragePolicyComplianceStatus
                           )}`}
                           icon={`${VMStoragePolicyComplianceIcon.get(
-                            VMsStoragePolicyCompliance.get(vm)?.disks[id].status as VmStoragePolicyComplianceStatus
+                            vm.storage_policy_compliance_info.disks[id].status as VmStoragePolicyComplianceStatus
                           )}`}
                           color={
                             VMStoragePolicyComplianceColor.get(
-                              VMsStoragePolicyCompliance.get(vm)?.disks[id].status as VmStoragePolicyComplianceStatus
+                              vm.storage_policy_compliance_info.disks[id].status as VmStoragePolicyComplianceStatus
                             ) as Color
                           }
                         />
@@ -482,16 +690,15 @@ export default function Command(): JSX.Element {
               </React.Fragment>
             )}
             {nics.map((nic) => {
-              const guestNetworkingInterfaces = VMsGuestNetworkingInterfaces.get(vm)?.filter(
-                (nicGuest) => nicGuest.mac_address === nic.mac_address
-              );
+              const guestNetworkingInterfaces =
+                vm.interfaces_info && vm.interfaces_info.filter((nicGuest) => nicGuest.mac_address === nic.mac_address);
               return (
                 <React.Fragment>
                   <List.Item.Detail.Metadata.Label
                     key={nic.label}
                     title={`${nic.label}`}
                     icon={Icon.Network}
-                    text={`${GetNetworkName(nic.backing.network)}`}
+                    text={`${GetNetworkName(vm.server, nic.backing.network)}`}
                   />
                   {guestNetworkingInterfaces && guestNetworkingInterfaces.length > 0 && (
                     <List.Item.Detail.Metadata.TagList title="IPs">
@@ -518,94 +725,22 @@ export default function Command(): JSX.Element {
   }
 
   React.useEffect(() => {
-    if (vCenterApi.current && selectedVM) {
-      setIsLoading(true);
-      if (!VMsInfo.has(selectedVM)) {
-        vCenterApi.current
-          .GetVM(selectedVM)
-          .then((vm) => {
-            if (vm)
-              setVMsInfo((prevState) => {
-                prevState.set(selectedVM, vm);
-                return new Map([...prevState]);
-              });
-          })
-          .catch(async (error) => {
-            await showToast({ style: Toast.Style.Failure, title: "Error", message: error.message });
-          });
-      }
-      if (!VMsGuestNetworkingInterfaces.has(selectedVM) && showDetail) {
-        vCenterApi.current
-          .GetVMGuestNetworkingInterfaces(selectedVM)
-          .then((interfaces) => {
-            if (interfaces)
-              setVMsGuestNetworkingInterfaces((prevState) => {
-                prevState.set(selectedVM, interfaces);
-                return new Map([...prevState]);
-              });
-          })
-          .catch(async (error) => {
-            await showToast({ style: Toast.Style.Failure, title: "Error", message: error.message });
-          });
-      }
-      if (!VMsStoragePolicy.has(selectedVM) && showDetail) {
-        vCenterApi.current
-          .GetVMStoragePolicy(selectedVM)
-          .then((policy) => {
-            if (policy)
-              if (policy)
-                setVMsStoragePolicy((prevState) => {
-                  prevState.set(selectedVM, policy);
-                  return new Map([...prevState]);
-                });
-          })
-          .catch(async (error) => {
-            await showToast({ style: Toast.Style.Failure, title: "Error", message: error.message });
-          });
-      }
-      if (!VMsStoragePolicyCompliance.has(selectedVM) && showDetail) {
-        vCenterApi.current
-          .GetVMStoragePolicyCompliance(selectedVM)
-          .then((policy) => {
-            if (policy)
-              if (policy)
-                setVMsStoragePolicyCompliance((prevState) => {
-                  prevState.set(selectedVM, policy);
-                  return new Map([...prevState]);
-                });
-          })
-          .catch(async (error) => {
-            await showToast({ style: Toast.Style.Failure, title: "Error", message: error.message });
-          });
-      }
-      setIsLoading(false);
-    }
-  }, [selectedVM, showDetail]);
-
-  React.useEffect(() => {
-    setShowDetail(false);
-    setSelectedVM("");
-    setVMsInfo(new Map());
-    setVMsGuestNetworkingInterfaces(new Map());
-    setVMsStoragePolicy(new Map());
-    setVMsStoragePolicyCompliance(new Map());
-  }, [VMs]);
-
-  React.useEffect(() => {
     if (Server && !IsLoadingServer && ServerSelected && !IsLoadingServerSelected) {
-      const cs = Server.filter((value) => value.name === ServerSelected)[0];
-      vCenterApi.current = new vCenter(cs.server, cs.username, cs.password);
-      RevalidateVMs();
-      RevalidateNetworks();
-      RevalidateStoragePolicies();
+      GetVMs();
+      GetNetworks();
+      GetStoragePolicies();
     } else if (Server && !IsLoadingServer && !ServerSelected && !IsLoadingServerSelected) {
-      const name = Server[0].name;
+      const name = Object.keys(Server)[0];
       LocalStorage.setItem("server_selected", name);
       RevalidateServerSelected();
     } else if (!IsLoadingServer && !Server) {
       SetShowServerView(true);
     }
   }, [Server, IsLoadingServer, ServerSelected, IsLoadingServerSelected]);
+
+  React.useEffect(() => {
+    if (showDetail === true) GetVmInfo(SelectedVM);
+  }, [showDetail]);
 
   const [ShowServerView, SetShowServerView] = React.useState(false);
   const [ShowServerViewEdit, SetShowServerViewEdit] = React.useState(false);
@@ -622,31 +757,24 @@ export default function Command(): JSX.Element {
 
   return (
     <List
-      isLoading={isLoading || IsLoadingVMs || IsLoadingNetworks || IsLoadingStoragePolicies}
-      onSelectionChange={(id: string | null) => {
-        setSelectedVM(id as string);
-      }}
+      isLoading={IsLoadingVMs || IsLoadingNetworks || IsLoadingStoragePolicies}
       isShowingDetail={showDetail}
       actions={GetVMAction()}
-      searchBarAccessory={
-        <List.Dropdown
-          tooltip="Available Server"
-          onChange={ChangeSelectedServer}
-          defaultValue={ServerSelected ? ServerSelected : undefined}
-        >
-          {Server && Server.map((value) => <List.Dropdown.Item title={value.name} value={value.name} />)}
-        </List.Dropdown>
-      }
+      searchBarAccessory={Server && GetSearchBar(Server)}
+      throttle={true}
+      onSelectionChange={GetVmInfo}
     >
       {VMs &&
         VMs.map((vm) => (
           <List.Item
-            key={vm.vm}
-            id={vm.vm}
-            title={vm.name}
-            icon={PowerModeIcons.get(vm.power_state)}
-            detail={GetVmDetail(vm.vm)}
-            actions={GetVMAction(vm.vm)}
+            key={`${vm.server}_${vm.summary.vm}`}
+            id={`${vm.server}_${vm.summary.vm}`}
+            title={vm.summary.name}
+            icon={PowerModeIcons.get(vm.summary.power_state)}
+            accessories={GetVmAccessory(vm)}
+            keywords={GetVmKeywords(vm)}
+            detail={GetVmDetail(vm)}
+            actions={GetVMAction(vm)}
           />
         ))}
     </List>

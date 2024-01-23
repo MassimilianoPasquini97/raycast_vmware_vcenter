@@ -1,14 +1,26 @@
 import { vCenter } from "./api/vCenter";
-import { GetServer, GetSelectedServer } from "./api/function";
-import { HostSummary } from "./api/types";
+import { GetServer, GetServerLocalStorage, GetSelectedServer } from "./api/function";
+import { Host } from "./api/types";
 import { HostPowerStateIcon } from "./api/ui";
 import * as React from "react";
-import { List, Toast, showToast, LocalStorage, Icon, ActionPanel, Action, getPreferenceValues } from "@raycast/api";
+import {
+  List,
+  Toast,
+  showToast,
+  LocalStorage,
+  Cache,
+  Icon,
+  ActionPanel,
+  Action,
+  getPreferenceValues,
+} from "@raycast/api";
 import { usePromise } from "@raycast/utils";
 import ServerView from "./api/ServerView";
 
 const pref = getPreferenceValues();
 if (!pref.certificate) process.env["NODE_TLS_REJECT_UNAUTHORIZED"] = "0";
+
+const cache = new Cache();
 
 export default function Command(): JSX.Element {
   const { data: Server, revalidate: RevalidateServer, isLoading: IsLoadingServer } = usePromise(GetServer);
@@ -17,32 +29,49 @@ export default function Command(): JSX.Element {
     revalidate: RevalidateServerSelected,
     isLoading: IsLoadingServerSelected,
   } = usePromise(GetSelectedServer);
-  const vCenterApi = React.useRef<vCenter | undefined>();
-  const {
-    data: Hosts,
-    revalidate: RevalidateHosts,
-    isLoading: IsLoadingHosts,
-  } = usePromise(GetHostList, [], {
-    execute: false,
-    onData: async () => {
-      await showToast({ style: Toast.Style.Success, title: "Data Loaded" });
-    },
-    onError: async (error) => {
-      await showToast({ style: Toast.Style.Failure, title: "Error", message: error.message });
-    },
-  });
+  const [Hosts, SetHosts]: [Host[], React.Dispatch<React.SetStateAction<Host[]>>] = React.useState([] as Host[]);
+  const [IsLoadingHosts, SetIsLoadingHosts]: [boolean, React.Dispatch<React.SetStateAction<boolean>>] =
+    React.useState(false);
 
   /**
-   * Get All Host available on Current Server.
-   * @returns {Promise<HostSummary[]>}
+   * Set Hosts.
+   * @returns {Promise<void>}
    */
-  async function GetHostList(): Promise<HostSummary[]> {
-    let host: HostSummary[] = [];
-    if (vCenterApi.current) {
-      const data = await vCenterApi.current.ListHost();
-      if (data) host = data;
+  async function GetHosts(): Promise<void> {
+    if (Server && ServerSelected) {
+      SetIsLoadingHosts(true);
+
+      let cached: Host[] | undefined;
+      const cachedj = cache.get(`host_${ServerSelected}_hosts`);
+      if (cachedj) cached = JSON.parse(cachedj);
+      if (Hosts.length === 0 && cached) SetHosts(cached);
+
+      let s: Map<string, vCenter> = Server;
+      if (ServerSelected !== "All") s = new Map([...s].filter(([k]) => k === ServerSelected));
+
+      const hosts: Host[] = [];
+
+      await Promise.all(
+        [...s].map(async ([k, s]) => {
+          const hostSummary = await s.ListHost().catch(async (err) => {
+            await showToast({ style: Toast.Style.Failure, title: `${k} - Get Hosts:`, message: `${err}` });
+          });
+          if (hostSummary)
+            hostSummary.forEach((h) => {
+              hosts.push({
+                server: k,
+                summary: h,
+              } as Host);
+            });
+        })
+      );
+
+      if (hosts.length > 0) {
+        SetHosts(hosts);
+        cache.set(`host_${ServerSelected}_hosts`, JSON.stringify(hosts));
+      }
+      SetIsLoadingHosts(false);
     }
-    return host;
   }
   /**
    * Change Selected Server.
@@ -56,19 +85,51 @@ export default function Command(): JSX.Element {
    * Delete Selected Server.
    */
   async function DeleteSelectedServer() {
-    if (Server && Server.length > 1) {
-      const NewServer = Server.filter((c) => {
-        return c.name !== ServerSelected;
-      });
-      const NewServerSelected = Server[0].name;
-      await LocalStorage.setItem("server", JSON.stringify(NewServer));
-      await LocalStorage.setItem("server_selected", NewServerSelected);
+    if (Server && Object.keys(Server).length > 1) {
+      const OldServer = await GetServerLocalStorage();
+      if (OldServer) {
+        const NewServer = OldServer.filter((c) => {
+          return c.name !== ServerSelected;
+        });
+        const NewServerSelected = NewServer[0].name;
+        await LocalStorage.setItem("server", JSON.stringify(NewServer));
+        await LocalStorage.setItem("server_selected", NewServerSelected);
+      }
     } else if (Server) {
       await LocalStorage.removeItem("server");
       await LocalStorage.removeItem("server_selected");
     }
     RevalidateServer();
     RevalidateServerSelected();
+  }
+  /**
+   * Search Bar Accessory
+   * @param {Map<string, vCenter>} server.
+   * @returns {JSX.Element}
+   */
+  function GetSearchBar(server: Map<string, vCenter>): JSX.Element {
+    const keys = [...server.keys()];
+    if (keys.length > 1) keys.unshift("All");
+    return (
+      <List.Dropdown
+        tooltip="Available Server"
+        onChange={ChangeSelectedServer}
+        defaultValue={ServerSelected ? ServerSelected : undefined}
+      >
+        {keys.map((s) => (
+          <List.Dropdown.Item title={s} value={s} />
+        ))}
+      </List.Dropdown>
+    );
+  }
+  /**
+   * @param {Host} host.
+   * @returns {List.Item.Accessory[]}
+   */
+  function GetHostAccessory(host: Host): List.Item.Accessory[] {
+    const a: List.Item.Accessory[] = [];
+    if (ServerSelected === "All") a.push({ tag: host.server, icon: Icon.Building });
+    return a;
   }
   /**
    * Host Action Menu.
@@ -78,12 +139,7 @@ export default function Command(): JSX.Element {
     return (
       <ActionPanel title="vCenter Host">
         {!IsLoadingHosts && (
-          <Action
-            title="Refresh"
-            icon={Icon.Repeat}
-            onAction={RevalidateHosts}
-            shortcut={{ modifiers: ["cmd"], key: "r" }}
-          />
+          <Action title="Refresh" icon={Icon.Repeat} onAction={GetHosts} shortcut={{ modifiers: ["cmd"], key: "r" }} />
         )}
         <ActionPanel.Section title="vCenter Server">
           <Action
@@ -102,11 +158,9 @@ export default function Command(): JSX.Element {
 
   React.useEffect(() => {
     if (Server && !IsLoadingServer && ServerSelected && !IsLoadingServerSelected) {
-      const cs = Server.filter((value) => value.name === ServerSelected)[0];
-      vCenterApi.current = new vCenter(cs.server, cs.username, cs.password);
-      RevalidateHosts();
+      GetHosts();
     } else if (Server && !IsLoadingServer && !ServerSelected && !IsLoadingServerSelected) {
-      const name = Server[0].name;
+      const name = Object.keys(Server)[0];
       LocalStorage.setItem("server_selected", name);
       RevalidateServerSelected();
     } else if (!IsLoadingServer && !Server) {
@@ -131,23 +185,16 @@ export default function Command(): JSX.Element {
     <List
       isLoading={IsLoadingServer || IsLoadingServerSelected || IsLoadingHosts}
       actions={GetHostAction()}
-      searchBarAccessory={
-        <List.Dropdown
-          tooltip="Available Server"
-          onChange={ChangeSelectedServer}
-          defaultValue={ServerSelected ? ServerSelected : undefined}
-        >
-          {Server && Server.map((value) => <List.Dropdown.Item title={value.name} value={value.name} />)}
-        </List.Dropdown>
-      }
+      searchBarAccessory={Server && GetSearchBar(Server)}
     >
       {Hosts &&
         Hosts.map((host) => (
           <List.Item
-            key={host.host}
-            id={host.host}
-            title={host.name}
-            icon={HostPowerStateIcon.get(host.power_state)}
+            key={`${host.server}_${host.summary.host}`}
+            id={`${host.server}_${host.summary.host}`}
+            title={host.summary.name}
+            icon={HostPowerStateIcon.get(host.summary.power_state)}
+            accessories={GetHostAccessory(host)}
             actions={GetHostAction()}
           />
         ))}
