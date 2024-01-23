@@ -85,7 +85,7 @@ export default function Command(): JSX.Element {
    * Delete Selected Server.
    */
   async function DeleteSelectedServer() {
-    if (Server && Object.keys(Server).length > 1) {
+    if (Server && [...Server.keys()].length > 1) {
       const OldServer = await GetServerLocalStorage();
       if (OldServer) {
         const NewServer = OldServer.filter((c) => {
