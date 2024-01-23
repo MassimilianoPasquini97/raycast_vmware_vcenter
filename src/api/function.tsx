@@ -1,4 +1,4 @@
-import { Server } from "./types";
+import { Server, VMSummary, Vm } from "./types";
 import { LocalStorage } from "@raycast/api";
 import { vCenter } from "./vCenter";
 
@@ -44,4 +44,27 @@ export async function GetSelectedServer(): Promise<string | undefined> {
   } else {
     return undefined;
   }
+}
+
+/**
+ *  Merge VM data between cache and API state.
+ * @param {string} s - Server Name.
+ * @param {Vm[]} c - Cache VM Data.
+ * @param {VMSummary[]} a - API VM Data.
+ * @returns {Vm[]} Return Merged VM Data.
+ */
+export function CacheMergeVMs(s: string, c: Vm[] | undefined, a: VMSummary[]): Vm[] {
+  const o = a.map((a) => {
+    if (c) {
+      const cf = c.filter((c) => c.summary.vm === a.vm);
+      if (cf.length === 1)
+        return {
+          ...cf[0],
+          summary: a,
+          server: s,
+        } as Vm;
+    }
+    return { server: s, summary: a } as Vm;
+  });
+  return o;
 }

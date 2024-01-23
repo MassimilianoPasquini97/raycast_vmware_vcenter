@@ -6,10 +6,6 @@ import {
   VMPowerAction,
   StoragePoliciesSummary,
   VmStoragePolicyComplianceStatus,
-  VMInfo,
-  VmGuestNetworkingInterfacesInfo,
-  VmStoragePolicyInfo,
-  VMStoragePolicyComplianceInfo,
 } from "./api/types";
 import {
   PowerModeIcons,
@@ -23,7 +19,7 @@ import {
   OsTextMetadata,
   OsIconsMetadata,
 } from "./api/ui";
-import { GetServer, GetSelectedServer, GetServerLocalStorage } from "./api/function";
+import { GetServer, GetSelectedServer, GetServerLocalStorage, CacheMergeVMs } from "./api/function";
 import * as React from "react";
 import {
   List,
@@ -99,29 +95,7 @@ export default function Command(): JSX.Element {
           const vmSummary = await s.ListVM().catch(async (err) => {
             await showToast({ style: Toast.Style.Failure, title: `${k} - Get VMs:`, message: `${err}` });
           });
-          if (vmSummary)
-            vmSummary.forEach((v) => {
-              let c: Vm[] | undefined;
-              if (cached) c = cached.filter((vc) => vc.server === k && vc.summary.vm === v.vm);
-              let vm_info: VMInfo | undefined;
-              let interfaces_info: VmGuestNetworkingInterfacesInfo[] | undefined;
-              let storage_policy_info: VmStoragePolicyInfo | undefined;
-              let storage_policy_compliance_info: VMStoragePolicyComplianceInfo | undefined;
-              if (c && c.length === 1) {
-                vm_info = c[0].vm_info;
-                interfaces_info = c[0].interfaces_info;
-                storage_policy_info = c[0].storage_policy_info;
-                storage_policy_compliance_info = c[0].storage_policy_compliance_info;
-              }
-              vms.push({
-                server: k,
-                summary: v,
-                vm_info: vm_info,
-                interfaces_info: interfaces_info,
-                storage_policy_info: storage_policy_info,
-                storage_policy_compliance_info: storage_policy_compliance_info,
-              } as Vm);
-            });
+          if (vmSummary) vms.push(...CacheMergeVMs(k, cached, vmSummary));
         })
       );
 
@@ -491,7 +465,7 @@ export default function Command(): JSX.Element {
               <Action.Open
                 title="Open RDP"
                 icon={{ source: Icon.Binoculars }}
-                target={`rdp://screen%20mode%20id=i%3A1&full%20address=s%3A${vm.interfaces_info[0].ip?.ip_addresses[0].ip_address}`}
+                target={`rdp://full%20address=s%3A${vm.interfaces_info[0].ip?.ip_addresses[0].ip_address}`}
                 shortcut={{ modifiers: ["cmd"], key: "u" }}
               />
             )}
