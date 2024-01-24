@@ -29,12 +29,13 @@ export default function Command(): JSX.Element {
     revalidate: RevalidateServerSelected,
     isLoading: IsLoadingServerSelected,
   } = usePromise(GetSelectedServer);
+
   const [Hosts, SetHosts]: [Host[], React.Dispatch<React.SetStateAction<Host[]>>] = React.useState([] as Host[]);
   const [IsLoadingHosts, SetIsLoadingHosts]: [boolean, React.Dispatch<React.SetStateAction<boolean>>] =
     React.useState(false);
 
   /**
-   * Set Hosts.
+   * Preload Hosts from cache and when api data is received replace data and save to cache.
    * @returns {Promise<void>}
    */
   async function GetHosts(): Promise<void> {
@@ -50,7 +51,6 @@ export default function Command(): JSX.Element {
       if (ServerSelected !== "All") s = new Map([...s].filter(([k]) => k === ServerSelected));
 
       const hosts: Host[] = [];
-
       await Promise.all(
         [...s].map(async ([k, s]) => {
           const hostSummary = await s.ListHost().catch(async (err) => {
@@ -70,21 +70,25 @@ export default function Command(): JSX.Element {
         SetHosts(hosts);
         cache.set(`host_${ServerSelected}_hosts`, JSON.stringify(hosts));
       }
+
       SetIsLoadingHosts(false);
     }
   }
+
   /**
-   * Change Selected Server.
+   * Change Selected Server and save state on LocalStorage.
    * @param {string} value - Server Name.
    */
   async function ChangeSelectedServer(value: string) {
     await LocalStorage.setItem("server_selected", value);
     RevalidateServerSelected();
   }
+
   /**
-   * Delete Selected Server.
+   * Delete Selected Server from LocalStorage.
+   * @returns {Promise<void>}
    */
-  async function DeleteSelectedServer() {
+  async function DeleteSelectedServer(): Promise<void> {
     if (Server && [...Server.keys()].length > 1) {
       const OldServer = await GetServerLocalStorage();
       if (OldServer) {
@@ -102,8 +106,9 @@ export default function Command(): JSX.Element {
     RevalidateServer();
     RevalidateServerSelected();
   }
+
   /**
-   * Search Bar Accessory
+   * Search Bar Accessory.
    * @param {Map<string, vCenter>} server.
    * @returns {JSX.Element}
    */
@@ -122,7 +127,9 @@ export default function Command(): JSX.Element {
       </List.Dropdown>
     );
   }
+
   /**
+   * Search Bar Accessory
    * @param {Host} host.
    * @returns {List.Item.Accessory[]}
    */
@@ -131,6 +138,7 @@ export default function Command(): JSX.Element {
     if (ServerSelected === "All") a.push({ tag: host.server, icon: Icon.Building });
     return a;
   }
+
   /**
    * Host Action Menu.
    * @returns {JSX.Element}

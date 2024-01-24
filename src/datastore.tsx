@@ -28,6 +28,7 @@ export default function Command(): JSX.Element {
     revalidate: RevalidateServerSelected,
     isLoading: IsLoadingServerSelected,
   } = usePromise(GetSelectedServer);
+
   const [Datastores, SetDatastores]: [Datastore[], React.Dispatch<React.SetStateAction<Datastore[]>>] = React.useState(
     [] as Datastore[]
   );
@@ -37,7 +38,7 @@ export default function Command(): JSX.Element {
   const [showDetail, setShowDetail]: [boolean, React.Dispatch<React.SetStateAction<boolean>>] = React.useState(false);
 
   /**
-   * Set Datastores.
+   * Preload Datastores from cache and when api data is received replace data and save to cache.
    * @returns {Promise<void>}
    */
   async function GetDatastores(): Promise<void> {
@@ -53,7 +54,6 @@ export default function Command(): JSX.Element {
       if (ServerSelected !== "All") s = new Map([...s].filter(([k]) => k === ServerSelected));
 
       const datastores: Datastore[] = [];
-
       await Promise.all(
         [...s].map(async ([k, s]) => {
           const datastoreSummary = await s.ListDatastore().catch(async (err) => {
@@ -73,21 +73,25 @@ export default function Command(): JSX.Element {
         SetDatastores(datastores);
         cache.set(`datastore_${ServerSelected}_hosts`, JSON.stringify(datastores));
       }
+
       SetIsLoadingDatastores(false);
     }
   }
+
   /**
-   * Change Selected Server.
+   * Change Selected Server and save state on LocalStorage.
    * @param {string} value - Server Name.
    */
   async function ChangeSelectedServer(value: string) {
     await LocalStorage.setItem("server_selected", value);
     RevalidateServerSelected();
   }
+
   /**
-   * Delete Selected Server.
+   * Delete Selected Server from LocalStorage.
+   * @returns {Promise<void>}
    */
-  async function DeleteSelectedServer() {
+  async function DeleteSelectedServer(): Promise<void> {
     if (Server && [...Server.keys()].length > 1) {
       const OldServer = await GetServerLocalStorage();
       if (OldServer) {
@@ -105,6 +109,7 @@ export default function Command(): JSX.Element {
     RevalidateServer();
     RevalidateServerSelected();
   }
+
   /**
    * Search Bar Accessory
    * @param {Map<string, vCenter>} server.
@@ -125,7 +130,9 @@ export default function Command(): JSX.Element {
       </List.Dropdown>
     );
   }
+
   /**
+   * Accessory List.
    * @param {Datastore} datastore.
    * @returns {List.Item.Accessory[]}
    */
@@ -171,6 +178,7 @@ export default function Command(): JSX.Element {
       </ActionPanel>
     );
   }
+
   /**
    * Datastore Detail Section.
    * @param {Datastore} datastore.

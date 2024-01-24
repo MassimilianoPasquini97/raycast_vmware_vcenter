@@ -28,6 +28,7 @@ export default function Command(): JSX.Element {
     revalidate: RevalidateServerSelected,
     isLoading: IsLoadingServerSelected,
   } = usePromise(GetSelectedServer);
+
   const [Networks, SetNetworks]: [Network[], React.Dispatch<React.SetStateAction<Network[]>>] = React.useState(
     [] as Network[]
   );
@@ -35,7 +36,7 @@ export default function Command(): JSX.Element {
     React.useState(false);
 
   /**
-   * Set Networks.
+   * Preload Networks from cache and when api data is received replace data and save to cache.
    * @returns {Promise<void>}
    */
   async function GetNetworks(): Promise<void> {
@@ -51,7 +52,6 @@ export default function Command(): JSX.Element {
       if (ServerSelected !== "All") s = new Map([...s].filter(([k]) => k === ServerSelected));
 
       const networks: Network[] = [];
-
       await Promise.all(
         [...s].map(async ([k, s]) => {
           const networksSummary = await s.ListNetwork().catch(async (err) => {
@@ -71,21 +71,25 @@ export default function Command(): JSX.Element {
         SetNetworks(networks);
         cache.set(`network_${ServerSelected}_hosts`, JSON.stringify(networks));
       }
+
       SetIsLoadingNetworks(false);
     }
   }
+
   /**
-   * Change Selected Server.
+   * Change Selected Server and save state on LocalStorage.
    * @param {string} value - Server Name.
    */
   async function ChangeSelectedServer(value: string) {
     await LocalStorage.setItem("server_selected", value);
     RevalidateServerSelected();
   }
+
   /**
-   * Delete Selected Server.
+   * Delete Selected Server from LocalStorage.
+   * @returns {Promise<void>}
    */
-  async function DeleteSelectedServer() {
+  async function DeleteSelectedServer(): Promise<void> {
     if (Server && [...Server.keys()].length > 1) {
       const OldServer = await GetServerLocalStorage();
       if (OldServer) {
@@ -103,6 +107,7 @@ export default function Command(): JSX.Element {
     RevalidateServer();
     RevalidateServerSelected();
   }
+
   /**
    * Search Bar Accessory
    * @param {Map<string, vCenter>} server.
@@ -123,15 +128,18 @@ export default function Command(): JSX.Element {
       </List.Dropdown>
     );
   }
+
   /**
+   * Accessory List.
    * @param {Network} network.
    * @returns {List.Item.Accessory[]}
    */
-  function GetHostAccessory(network: Network): List.Item.Accessory[] {
+  function GetNetworkAccessory(network: Network): List.Item.Accessory[] {
     const a: List.Item.Accessory[] = [];
     if (ServerSelected === "All") a.push({ tag: network.server, icon: Icon.Building });
     return a;
   }
+
   /**
    * Host Action Menu.
    * @returns {JSX.Element}
@@ -200,7 +208,7 @@ export default function Command(): JSX.Element {
             id={`${network.server}_${network.summary.network}`}
             title={network.summary.name}
             icon={{ source: "icons/network/network.svg" }}
-            accessories={GetHostAccessory(network)}
+            accessories={GetNetworkAccessory(network)}
             actions={GetHostAction()}
           />
         ))}

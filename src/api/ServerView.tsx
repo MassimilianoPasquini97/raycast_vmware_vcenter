@@ -33,7 +33,8 @@ export default function ServerView(props: props): JSX.Element {
 
   /**
    * Validate Name Field.
-   * @param event
+   * @param {any} event
+   * @returns {void}
    */
   function ValidateName(event: any): void {
     const value: string = event.target.value;
@@ -55,8 +56,10 @@ export default function ServerView(props: props): JSX.Element {
       SetNameError("The Field Should't be Empty");
     }
   }
+
   /**
    * Drop Name Error.
+   * @returns {void}
    */
   function DropNameError(): void {
     if (NameError && NameError.length > 0) {
@@ -66,7 +69,8 @@ export default function ServerView(props: props): JSX.Element {
 
   /**
    * Validate Server Field.
-   * @param event
+   * @param {any} event
+   * @returns {void}
    */
   function ValidateServer(event: any): void {
     const value: string = event.target.value;
@@ -84,8 +88,10 @@ export default function ServerView(props: props): JSX.Element {
       SetServerError("The Field Should't be Empty");
     }
   }
+
   /**
    * Drop Server Error.
+   * @returns {void}
    */
   function DropServerError(): void {
     if (ServerError && ServerError.length > 0) {
@@ -95,7 +101,8 @@ export default function ServerView(props: props): JSX.Element {
 
   /**
    * Validate Username Field.
-   * @param event
+   * @param {any} event
+   * @returns {void}
    */
   function ValidateUsername(event: any): void {
     const value = event.target.value;
@@ -105,8 +112,10 @@ export default function ServerView(props: props): JSX.Element {
       SetUsernameError("The Field Should't be Empty");
     }
   }
+
   /**
    * Drop Server Error.
+   * @returns {void}
    */
   function DropUsernameError(): void {
     if (UsernameError && UsernameError.length > 0) {
@@ -116,7 +125,8 @@ export default function ServerView(props: props): JSX.Element {
 
   /**
    * Validate Password Field.
-   * @param event
+   * @param {any} event
+   * @returns {void}
    */
   function ValidatePassword(event: any): void {
     const value = event.target.value;
@@ -126,8 +136,10 @@ export default function ServerView(props: props): JSX.Element {
       SetPasswordError("The Field Should't be Empty");
     }
   }
+
   /**
    * Drop Password Error.
+   * @returns {void}
    */
   function DropPasswordError(): void {
     if (PasswordError && PasswordError.length > 0) {
@@ -138,6 +150,7 @@ export default function ServerView(props: props): JSX.Element {
   /**
    * Save Server to LocalStorage.
    * @param {FormData} value.
+   * @returns {Promise<void>}
    */
   async function Save(value: FormData): Promise<void> {
     if ((value.name || props.server) && value.server && value.username && value.password) {

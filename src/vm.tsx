@@ -55,12 +55,14 @@ export default function Command(): JSX.Element {
     React.useState(false);
   const CacheVMs: React.MutableRefObject<Map<string, Date>> = React.useRef(new Map());
   const [SelectedVM, SetSelectedVM]: [string, React.Dispatch<React.SetStateAction<string>>] = React.useState("");
+
   const [Networks, SetNetworks]: [
     Map<string, NetworkSummary[]>,
     React.Dispatch<React.SetStateAction<Map<string, NetworkSummary[]>>>
   ] = React.useState(new Map());
   const [IsLoadingNetworks, SetIsLoadingNetworks]: [boolean, React.Dispatch<React.SetStateAction<boolean>>] =
     React.useState(false);
+
   const [StoragePolicies, SetStoragePolicies]: [
     Map<string, StoragePoliciesSummary[]>,
     React.Dispatch<React.SetStateAction<Map<string, StoragePoliciesSummary[]>>>
@@ -73,7 +75,7 @@ export default function Command(): JSX.Element {
   const [showDetail, setShowDetail]: [boolean, React.Dispatch<React.SetStateAction<boolean>>] = React.useState(false);
 
   /**
-   * Set VMs.
+   * Preload VMs from cache and when api data is received merge cache and api data and save to cache.
    * @returns {Promise<void>}
    */
   async function GetVMs(): Promise<void> {
@@ -89,7 +91,6 @@ export default function Command(): JSX.Element {
       if (ServerSelected !== "All") s = new Map([...s].filter(([k]) => k === ServerSelected));
 
       const vms: Vm[] = [];
-
       await Promise.all(
         [...s].map(async ([k, s]) => {
           const vmSummary = await s.ListVM().catch(async (err) => {
@@ -103,11 +104,13 @@ export default function Command(): JSX.Element {
         SetVMs(vms);
         cache.set(`vm_${ServerSelected}_vms`, JSON.stringify(vms));
       }
+
       SetIsLoadingVMs(false);
     }
   }
+
   /**
-   * Set Networks.
+   * Preload Networks from cache and when api data is received replace data and save to cache.
    * @returns {Promise<void>}
    */
   async function GetNetworks(): Promise<void> {
@@ -139,8 +142,9 @@ export default function Command(): JSX.Element {
       SetIsLoadingNetworks(false);
     }
   }
+
   /**
-   * Set Storage Policies.
+   * Preload Storage Policies from cache and when api data is received replace data and save to cache.
    * @returns {Promise<void>}
    */
   async function GetStoragePolicies(): Promise<void> {
@@ -159,7 +163,7 @@ export default function Command(): JSX.Element {
       await Promise.all(
         [...s].map(async ([k, s]) => {
           const o = await s.GetStoragePolicy().catch(async (err) => {
-            await showToast({ style: Toast.Style.Failure, title: `${k} - 'Get Sorage':`, message: `${err}` });
+            await showToast({ style: Toast.Style.Failure, title: `${k} - 'Get Storage':`, message: `${err}` });
           });
           if (o) storagePolicies.set(k, o);
         })
@@ -176,6 +180,7 @@ export default function Command(): JSX.Element {
       SetIsLoadingStoragePolicies(false);
     }
   }
+
   /**
    * Get Network Name.
    * @param {string} server - vCenter Server Name.
@@ -189,6 +194,7 @@ export default function Command(): JSX.Element {
     }
     return network;
   }
+
   /**
    * Perform Power Action on VM Using Guest Tools.
    * @param {Vm} vm.
@@ -241,10 +247,11 @@ export default function Command(): JSX.Element {
             await showToast({ style: Toast.Style.Failure, title: `${vm.summary.name}`, message: `${error}` })
         );
   }
+
   /**
-   * Update Vm info if showDetail is true and vm data is not present or outdated.
-   * @param {string | null} id - vm identifier.
-   * @param {boolean} forced - set to true for force update.
+   * Update Vm info if 'showDetail' is true and vm data is not present or outdated (not updated in the last 5 minutes).
+   * @param {(string|null)} id - vm identifier.
+   * @param {boolean} [forced=true] - set to true for force update ignoring 'showDetail'.
    * @returns {Promise<void>}
    */
   async function GetVmInfo(id: string | null, forced = false): Promise<void> {
@@ -288,6 +295,7 @@ export default function Command(): JSX.Element {
       }
     }
   }
+
   /**
    * Perform Power Action on VM.
    * @param {Vm} vm.
@@ -297,7 +305,7 @@ export default function Command(): JSX.Element {
     const MessageActionStarted: Map<VMPowerAction, string> = new Map([
       [VMPowerAction.RESET, `Rebooting`],
       [VMPowerAction.START, `Starting`],
-      [VMPowerAction.STOP, `Shuting Down`],
+      [VMPowerAction.STOP, `Shutting Down`],
       [VMPowerAction.SUSPEND, `Suspending`],
     ]);
     const MessageActionFinished: Map<VMPowerAction, string> = new Map([
@@ -342,21 +350,25 @@ export default function Command(): JSX.Element {
             await showToast({ style: Toast.Style.Failure, title: `${vm.summary.name}`, message: `${error}` })
         );
   }
+
   /**
-   * Change Selected Server.
+   * Change Selected Server and save state on LocalStorage.
    * @param {string} value - Server Name.
+   * @returns {Promise<void>}
    */
-  async function ChangeSelectedServer(value: string) {
+  async function ChangeSelectedServer(value: string): Promise<void> {
     await LocalStorage.setItem("server_selected", value);
     SetVMs([]);
     SetNetworks(new Map());
     SetStoragePolicies(new Map());
     RevalidateServerSelected();
   }
+
   /**
-   * Delete Selected Server.
+   * Delete Selected Server from LocalStorage.
+   * @returns {Promise<void>}
    */
-  async function DeleteSelectedServer() {
+  async function DeleteSelectedServer(): Promise<void> {
     if (Server && [...Server.keys()].length > 1) {
       const OldServer = await GetServerLocalStorage();
       if (OldServer) {
@@ -374,6 +386,7 @@ export default function Command(): JSX.Element {
     RevalidateServer();
     RevalidateServerSelected();
   }
+
   /**
    * Search Bar Accessory
    * @param {Map<string, vCenter>} server.
@@ -394,7 +407,9 @@ export default function Command(): JSX.Element {
       </List.Dropdown>
     );
   }
+
   /**
+   * Additional Keywords for search.
    * @param {Vm} vm.
    * @returns {string[]} Array of search keywords
    */
@@ -407,7 +422,9 @@ export default function Command(): JSX.Element {
       });
     return k;
   }
+
   /**
+   * Accessory List.
    * @param {Vm} vm.
    * @returns {List.Item.Accessory[]}
    */
@@ -417,8 +434,9 @@ export default function Command(): JSX.Element {
     if (vm.vm_info?.guest_OS) a.push({ icon: OsIconsMetadata.get(vm.vm_info.guest_OS as string) });
     return a;
   }
+
   /**
-   * VM Action Menu.
+   * Action Menu.
    * @param {Vm} vm.
    * @returns {JSX.Element}
    */
@@ -550,8 +568,9 @@ export default function Command(): JSX.Element {
       </ActionPanel>
     );
   }
+
   /**
-   * VM Detail Section.
+   * Detail Section.
    * @param {string} vm - vm identifier.
    * @returns {JSX.Element}
    */
