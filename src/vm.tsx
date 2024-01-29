@@ -543,8 +543,12 @@ export default function Command(): JSX.Element {
                 SetShowServerView(true);
               }}
             />
-            <Action title="Edit Server" icon={Icon.Pencil} onAction={() => SetShowServerViewEdit(true)} />
-            <Action title="Delete Server" icon={Icon.DeleteDocument} onAction={DeleteSelectedServer} />
+            {ServerSelected !== "All" && (
+              <Action title="Edit Server" icon={Icon.Pencil} onAction={() => SetShowServerViewEdit(true)} />
+            )}
+            {ServerSelected !== "All" && (
+              <Action title="Delete Server" icon={Icon.DeleteDocument} onAction={DeleteSelectedServer} />
+            )}
           </ActionPanel.Section>
         </ActionPanel>
       );
