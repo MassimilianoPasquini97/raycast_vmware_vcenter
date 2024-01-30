@@ -481,7 +481,7 @@ export default function Command(): JSX.Element {
             vm.interfaces_info[0].ip?.ip_addresses &&
             vm.interfaces_info[0].ip.ip_addresses.length > 0 && (
               <Action.Open
-                title="Open RDP"
+                title="Open Rdp"
                 icon={{ source: Icon.Binoculars }}
                 target={`rdp://full%20address=s%3A${vm.interfaces_info[0].ip?.ip_addresses[0].ip_address}`}
                 shortcut={{ modifiers: ["cmd"], key: "u" }}
