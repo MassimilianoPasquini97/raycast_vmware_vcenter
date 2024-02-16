@@ -216,27 +216,20 @@ export default function Command(): JSX.Element {
       [VMGuestPowerAction.SHUTDOWN, `Powered Off`],
       [VMGuestPowerAction.STANDBUY, `Suspended`],
     ]);
-    if (!vm.vm_info) {
-      await showToast({
-        style: Toast.Style.Failure,
-        title: "Vm Info is Undefined",
-      });
-      return;
-    }
-    if (!Server || Server.has(vm.summary.vm)) {
+    if (!Server || !Server.has(vm.server)) {
       await showToast({
         style: Toast.Style.Failure,
         title: "vCenter Server is Undefined",
       });
       return;
     }
-    await showToast({
-      style: Toast.Style.Animated,
-      title: `${vm.summary.name}`,
-      message: `${MessageGuestActionStarted.get(action)}`,
-    });
-    const s = Server.get(vm.summary.vm);
-    if (s)
+    const s = Server.get(vm.server);
+    if (s) {
+      await showToast({
+        style: Toast.Style.Animated,
+        title: `${vm.summary.name}`,
+        message: `${MessageGuestActionStarted.get(action)}`,
+      });
       await s
         .VMGuestPower(vm.summary.vm, action)
         .then(
@@ -251,6 +244,7 @@ export default function Command(): JSX.Element {
           async (error) =>
             await showToast({ style: Toast.Style.Failure, title: `${vm.summary.name}`, message: `${error}` })
         );
+    }
   }
 
   /**
@@ -319,27 +313,20 @@ export default function Command(): JSX.Element {
       [VMPowerAction.STOP, `Powered Off`],
       [VMPowerAction.SUSPEND, `Suspended`],
     ]);
-    if (!vm.vm_info) {
-      await showToast({
-        style: Toast.Style.Failure,
-        title: "Vm Info is Undefined",
-      });
-      return;
-    }
-    if (!Server || Server.has(vm.summary.vm)) {
+    if (!Server || !Server.has(vm.server)) {
       await showToast({
         style: Toast.Style.Failure,
         title: "vCenter Server is Undefined",
       });
       return;
     }
-    await showToast({
-      style: Toast.Style.Animated,
-      title: `${vm.vm_info.name}`,
-      message: `${MessageActionStarted.get(action)}`,
-    });
-    const s = Server.get(vm.summary.vm);
-    if (s)
+    const s = Server.get(vm.server);
+    if (s) {
+      await showToast({
+        style: Toast.Style.Animated,
+        title: `${vm.summary.name}`,
+        message: `${MessageActionStarted.get(action)}`,
+      });
       await s
         .VMPower(vm.summary.vm, action)
         .then(
@@ -354,6 +341,7 @@ export default function Command(): JSX.Element {
           async (error) =>
             await showToast({ style: Toast.Style.Failure, title: `${vm.summary.name}`, message: `${error}` })
         );
+    }
   }
 
   /**
