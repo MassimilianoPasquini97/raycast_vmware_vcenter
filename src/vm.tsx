@@ -32,6 +32,7 @@ import {
   LocalStorage,
   Cache,
   getPreferenceValues,
+  open,
 } from "@raycast/api";
 import { usePromise } from "@raycast/utils";
 import ServerView from "./api/ServerView";
@@ -345,6 +346,45 @@ export default function Command(): JSX.Element {
   }
 
   /**
+   * Generate Console Ticket. If the ticket can't be generated it fallback to standard vmrc url requiring authentication.
+   * @param {Vm} vm.
+   */
+  async function VMOpenConsole(vm: Vm): Promise<void> {
+    if (!Server || !Server.has(vm.server)) {
+      await showToast({
+        style: Toast.Style.Failure,
+        title: "vCenter Server is Undefined",
+      });
+      return;
+    }
+    const s = Server.get(vm.server);
+    if (s) {
+      await showToast({
+        style: Toast.Style.Animated,
+        title: `${vm.summary.name}`,
+        message: `Requesting Console Ticket`,
+      });
+      await s
+        .VMCreateConsoleTickets(vm.summary.vm)
+        .then(async (ticket) => {
+          if (ticket) {
+            await showToast({
+              style: Toast.Style.Success,
+              title: `${vm.summary.name}`,
+              message: `Console Ticket Generated`,
+            });
+            console.log(ticket.ticket);
+            open(ticket.ticket);
+          }
+        })
+        .catch(async (error) => {
+          await showToast({ style: Toast.Style.Failure, title: `${vm.summary.name}`, message: `${error}` });
+          open(`vmrc://${Server.get(vm.server)?.GetFqdn()}/?moid=${vm.summary.vm}`);
+        });
+    }
+  }
+
+  /**
    * Change Selected Server and save state on LocalStorage.
    * @param {string} value - Server Name.
    * @returns {Promise<void>}
@@ -463,10 +503,10 @@ export default function Command(): JSX.Element {
             />
           )}
           {Server && Server.has(vm.server) && (
-            <Action.Open
+            <Action
               title="Open Console"
               icon={{ source: "icons/vm/console.svg" }}
-              target={`vmrc://${Server.get(vm.server)?.GetFqdn()}/?moid=${vm.summary.vm}`}
+              onAction={() => VMOpenConsole(vm)}
               shortcut={{ modifiers: ["cmd"], key: "y" }}
             />
           )}
