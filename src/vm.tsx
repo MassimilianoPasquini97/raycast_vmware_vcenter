@@ -749,7 +749,7 @@ export default function Command(): JSX.Element {
       GetNetworks();
       GetStoragePolicies();
     } else if (Server && !IsLoadingServer && !ServerSelected && !IsLoadingServerSelected) {
-      const name = Object.keys(Server)[0];
+      const name = [...Server.keys()][0];
       LocalStorage.setItem("server_selected", name);
       RevalidateServerSelected();
     } else if (!IsLoadingServer && !Server) {
@@ -787,19 +787,18 @@ export default function Command(): JSX.Element {
       throttle={true}
       onSelectionChange={GetVmInfo}
     >
-      {VMs &&
-        VMs.map((vm) => (
-          <List.Item
-            key={`${vm.server}_${vm.summary.vm}`}
-            id={`${vm.server}_${vm.summary.vm}`}
-            title={vm.summary.name}
-            icon={PowerModeIcons.get(vm.summary.power_state)}
-            accessories={GetVmAccessory(vm)}
-            keywords={GetVmKeywords(vm)}
-            detail={GetVmDetail(vm)}
-            actions={GetVMAction(vm)}
-          />
-        ))}
+      {VMs.map((vm) => (
+        <List.Item
+          key={`${vm.server}_${vm.summary.vm}`}
+          id={`${vm.server}_${vm.summary.vm}`}
+          title={vm.summary.name}
+          icon={PowerModeIcons.get(vm.summary.power_state)}
+          accessories={GetVmAccessory(vm)}
+          keywords={GetVmKeywords(vm)}
+          detail={GetVmDetail(vm)}
+          actions={GetVMAction(vm)}
+        />
+      ))}
     </List>
   );
 }
