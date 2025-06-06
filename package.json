@@ -21,6 +21,33 @@
       "label": "Certificate Validation Enabled"
     }
   ],
+  "tools": [
+    {
+      "name": "vm-list",
+      "title": "List VMs",
+      "description": "List virtual machines from VMware vCenter infrastructure"
+    },
+    {
+      "name": "vm-get-info",
+      "title": "Get VMs Detailed Info",
+      "description": "Get virtual machines detailed info from VMware vCenter infrastructure"
+    },
+    {
+      "name": "vm-open-console",
+      "title": "Open VM Console",
+      "description": "Open virtual machine console"
+    }
+  ],
+  "ai": {
+    "evals": [
+      {
+        "input" : "@vmware-vcenter List all power on machine"
+      },
+      {
+        "input": "@vmware-vcenter List all vm with more then two core and 8GB of RAM"
+      }
+    ]
+  },
   "commands": [
     {
       "name": "vm",
