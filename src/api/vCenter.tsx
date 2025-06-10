@@ -15,7 +15,7 @@ import {
   VmConsoleTicketsCreateSpec,
   VmConsoleTicketsSummary,
 } from "./types";
-import fetch from "node-fetch";
+import fetch from "cross-fetch";
 
 export class vCenter {
   private readonly _credential: string;
@@ -40,6 +40,7 @@ export class vCenter {
       headers: {
         Authorization: `Basic ${this._credential}`,
       },
+      signal: AbortSignal.timeout(this._timeout),
     })
       .then((response) => {
         if (response.ok) {

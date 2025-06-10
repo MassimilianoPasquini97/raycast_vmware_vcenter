@@ -5,7 +5,9 @@
   "description": "Manage VMware vCenter",
   "icon": "command-icon.png",
   "author": "massimiliano_pasquini",
-  "categories": ["Productivity"],
+  "categories": [
+    "Productivity"
+  ],
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -51,7 +53,7 @@
   "ai": {
     "evals": [
       {
-        "input" : "@vmware-vcenter List all power on machine"
+        "input": "@vmware-vcenter List all power on machine"
       },
       {
         "input": "@vmware-vcenter List all vm with more then two core and 8GB of RAM"
@@ -90,8 +92,7 @@
   ],
   "dependencies": {
     "@raycast/api": "^1.56.0",
-    "@raycast/utils": "^1.10.1",
-    "node-fetch": "^3.3.2"
+    "@raycast/utils": "^1.10.1"
   },
   "devDependencies": {
     "@raycast/eslint-config": "1.0.8",
