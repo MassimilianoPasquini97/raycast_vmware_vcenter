@@ -3,94 +3,52 @@ import { GetServer } from "../api/function";
 import { vCenter } from "../api/vCenter";
 import { errorNoServerConfigured } from "./errors";
 import { GetVmConsoleUrl } from "./function";
+import { InputVmIds } from "./type";
 
 const pref = getPreferenceValues();
 if (!pref.certificate) process.env["NODE_TLS_REJECT_UNAUTHORIZED"] = "0";
 
-type Input = {
-  /**
-   * HTTP URL query parameter string.
-   *
-   * Query Parameters:
-   *
-   * names - Optional - String of Array
-   * Names that virtual machines must have to match the filter.
-   * If unset or empty, virtual machines with any name match the filter.
-   *
-   * folders - Optional - String of Array
-   * Folders that must contain the virtual machine for the virtual machine to
-   * match the filter. If unset or empty, virtual machines in any folder match
-   * the filter. When clients pass a value of this structure as a parameter,
-   * the field must contain identifiers for the resource type: Folder. When
-   * operations return a value of this structure as a result, the field will
-   * contain identifiers for the resource type: Folder.
-   *
-   * datacenters - Optional - String of Array
-   * Hosts that must contain the virtual machine for the virtual machine to
-   * match the filter. If unset or empty, virtual machines on any host match
-   * the filter. When clients pass a value of this structure as a parameter,
-   * the field must contain identifiers for the resource type: HostSystem.
-   * When operations return a value of this structure as a result, the field
-   * will contain identifiers for the resource type: HostSystem.
-   *
-   * clusters - Optional - String of Array
-   * Clusters that must contain the virtual machine for the virtual machine
-   * to match the filter. If unset or empty, virtual machines in any cluster
-   * match the filter. When clients pass a value of this structure as a
-   * parameter, the field must contain identifiers for the resource type:
-   * ClusterComputeResource. When operations return a value of this structure
-   * as a result, the field will contain identifiers for the resource type:
-   * ClusterComputeResource.
-   *
-   * resource_pools - Optional - String of Array
-   * Resource pools that must contain the virtual machine for the virtual
-   * machine to match the filter. If unset or empty, virtual machines in
-   * any resource pool match the filter. When clients pass a value of this
-   * structure as a parameter, the field must contain identifiers for the
-   * resource type: ResourcePool. When operations return a value of this
-   * structure as a result, the field will contain identifiers for the
-   * resource type: ResourcePool.
-   *
-   * power_states - Optional - Vm_Power_State of Array
-   * Power states that a virtual machine must be in to match the filter.
-   * If unset or empty, virtual machines in any
-   * power state match the filter.
-   *
-   * Custom Types:
-   *
-   * Vm_Power_State - Enumeration - POWERED_OFF, POWERED_ON, SUSPENDED
-   * The Power.State enumerated type defines the valid power states for a virtual machine.
-   * POWERED_OFF : The virtual machine is powered off.
-   * POWERED_ON : The virtual machine is powered on.
-   * SUSPENDED : The virtual machine is suspended.
-   *
-   */
-  searchParams?: string;
-};
-
 /**
  * Open virtual machine console for remote management.
  */
-export default async function tool(input: Input): Promise<string | void> {
+export default async function tool(input: InputVmIds): Promise<string | void> {
   /* Get vCenter Servers */
-  let servers: Map<string, vCenter> | undefined;
-  try {
-    servers = await GetServer();
-  } catch (e) {
-    throw new Error(`Error Getting Configured vCenter Servers. Error Message: ${e}`);
-  }
+  let servers = await GetServer();
   if (!servers) throw errorNoServerConfigured;
 
-  const tickets = await GetVmConsoleUrl(servers, input.searchParams);
+  /* Get Console Tickets */
+  const tickets = await Promise.all(input.vm.map(async (vm) => {
+    return await GetVmConsoleUrl(servers!, vm)
+      .catch((e) => {
+        return e;
+      });
+  }));
 
+  /* Open Console with Tickets */
+  let errorCounter = 0;
+  let output: string | undefined;
   let opened = false;
   for (const ticket of tickets) {
+    /* Check Errors */
+    if (ticket instanceof Error) {
+      if (!output) output = "Error running the following tasks:";
+      output += `* ${ticket}`;
+      errorCounter += 1;
+      continue;
+    };
+
+    /* Open Console and Wait */
     await open(ticket);
     if (!opened)
       await new Promise(() =>
         setTimeout(() => {
           opened = true;
-        }, 5000)
+        }, 1000)
       );
   }
+
+  /* Pass result to the LLM */
+  if (errorCounter === tickets.length) throw new Error(output);
+  if (!output) output = "All Console opened";
+  return output;
 }

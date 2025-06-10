@@ -36,6 +36,16 @@
       "name": "vm-open-console",
       "title": "Open VM Console",
       "description": "Open virtual machine console"
+    },
+    {
+      "name": "vm-guest-power",
+      "title": "Guest Agent Power Action",
+      "description": "Reboot, Shutdown or Standby Virtual Machines using Guest Agent"
+    },
+    {
+      "name": "vm-power",
+      "title": "Guest Power Action",
+      "description": "Reset, Start, Stop or Suspend one or more Virtual Machines"
     }
   ],
   "ai": {
