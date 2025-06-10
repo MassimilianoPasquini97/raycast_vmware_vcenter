@@ -1,6 +1,5 @@
 import { getPreferenceValues, open } from "@raycast/api";
 import { GetServer } from "../api/function";
-import { vCenter } from "../api/vCenter";
 import { errorNoServerConfigured } from "./errors";
 import { GetVmConsoleUrl } from "./function";
 import { InputVmIds } from "./type";
@@ -13,16 +12,17 @@ if (!pref.certificate) process.env["NODE_TLS_REJECT_UNAUTHORIZED"] = "0";
  */
 export default async function tool(input: InputVmIds): Promise<string | void> {
   /* Get vCenter Servers */
-  let servers = await GetServer();
+  const servers = await GetServer();
   if (!servers) throw errorNoServerConfigured;
 
   /* Get Console Tickets */
-  const tickets = await Promise.all(input.vm.map(async (vm) => {
-    return await GetVmConsoleUrl(servers!, vm)
-      .catch((e) => {
+  const tickets = await Promise.all(
+    input.vm.map(async (vm) => {
+      return await GetVmConsoleUrl(servers!, vm).catch((e) => {
         return e;
       });
-  }));
+    })
+  );
 
   /* Open Console with Tickets */
   let errorCounter = 0;
@@ -35,7 +35,7 @@ export default async function tool(input: InputVmIds): Promise<string | void> {
       output += `* ${ticket}`;
       errorCounter += 1;
       continue;
-    };
+    }
 
     /* Open Console and Wait */
     await open(ticket);

@@ -12,7 +12,7 @@ if (!pref.certificate) process.env["NODE_TLS_REJECT_UNAUTHORIZED"] = "0";
  */
 export default async function tool(input: InputVmIds): Promise<string> {
   /* Get vCenter Servers */
-  let servers = await GetServer();
+  const servers = await GetServer();
   if (!servers) throw errorNoServerConfigured;
 
   /* Get Virtual Machines Info */
@@ -26,9 +26,5 @@ export default async function tool(input: InputVmIds): Promise<string> {
   );
 
   /* Return data in string format */
-  let output = "";
-  vmInfo.forEach((value, server) => {
-    output += `vCenter Server: ${server}\n${JSON.stringify(value)}\n\n`;
-  });
   return DataToPromptVmInfo(vmInfo);
 }

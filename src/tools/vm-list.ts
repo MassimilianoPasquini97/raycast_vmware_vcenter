@@ -19,7 +19,7 @@ if (!pref.certificate) process.env["NODE_TLS_REJECT_UNAUTHORIZED"] = "0";
  */
 export default async function tool(input: InputVmList): Promise<string> {
   /* Get vCenter Servers */
-  let servers = await GetServer();
+  const servers = await GetServer();
   if (!servers) throw errorNoServerConfigured;
 
   /* List Virtual Machines */

@@ -9,7 +9,7 @@ if (!pref.certificate) process.env["NODE_TLS_REJECT_UNAUTHORIZED"] = "0";
 
 export const confirmation: Tool.Confirmation<InputVmGuestTasks> = async (input) => {
   /* Get vCenter Servers */
-  let servers = await GetServer();
+  const servers = await GetServer();
   if (!servers) throw errorNoServerConfigured;
 
   /* Get VMs Info */
@@ -37,7 +37,7 @@ export const confirmation: Tool.Confirmation<InputVmGuestTasks> = async (input) 
  */
 export default async function tool(input: InputVmGuestTasks): Promise<string> {
   /* Get vCenter Servers */
-  let servers = await GetServer();
+  const servers = await GetServer();
   if (!servers) throw errorNoServerConfigured;
 
   /* Run Tasks */

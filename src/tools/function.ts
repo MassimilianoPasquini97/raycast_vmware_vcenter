@@ -8,9 +8,8 @@ import { InputVmGuestTasks, InputVmId, InputVmPowerTasks, OutputVmInfo } from ".
 export function DataToPromptListVm(data: Map<string, VMSummary[]>): string {
   let output = "List of VMs found:\n";
   data.forEach((value, server) => {
-    const v = structuredClone(value).map((value: any): any => {
-      value["vcenter_id"] = server;
-      return value;
+    const v = value.map((value) => {
+      return { vcenter_id: server, ...value };
     });
     output += `${JSON.stringify(v)}\n`;
   });
@@ -99,22 +98,25 @@ export async function GetVmConsoleUrl(servers: Map<string, vCenter>, vm: InputVm
  */
 export async function RunVmGuestTasks(servers: Map<string, vCenter>, tasks: InputVmGuestTasks): Promise<string> {
   /* Run Guest Power Action for all Tasks */
-  const tasksResult = await Promise.all(tasks.tasks.map(async (task) => {
-    /* Get vCenter Server */
-    const server = servers.get(task.vm.vcenterId);
-    if (!server) throw new Error(`vCenter Server with name "${task.vm.vcenterId}" does not exist`);
-    
-    /* Run Guest Power Action */
-    return await server.VMGuestPower(task.vm.vmId, task.action as VMGuestPowerAction)
-      .catch((e) => `* [${task.vm.vcenterId}] ${task.vm.vmId} - ${task.action}, Error: ${e}`);
-  }))
+  const tasksResult = await Promise.all(
+    tasks.tasks.map(async (task) => {
+      /* Get vCenter Server */
+      const server = servers.get(task.vm.vcenterId);
+      if (!server) throw new Error(`vCenter Server with name "${task.vm.vcenterId}" does not exist`);
+
+      /* Run Guest Power Action */
+      return await server
+        .VMGuestPower(task.vm.vmId, task.action as VMGuestPowerAction)
+        .catch((e) => `* [${task.vm.vcenterId}] ${task.vm.vmId} - ${task.action}, Error: ${e}`);
+    })
+  );
 
   /* Read Tasks Result and pass to the LLM */
   let output: string | undefined;
   tasksResult.forEach((result) => {
-    if (!output && !result) output = "Error running the following tasks:\n"
+    if (!output && !result) output = "Error running the following tasks:\n";
     if (!result) output += `${result}\n`;
-  })
+  });
   if (!output) output = "All tasks done without errors";
   return output;
 }
@@ -128,22 +130,25 @@ export async function RunVmGuestTasks(servers: Map<string, vCenter>, tasks: Inpu
  */
 export async function RunVmPowerTasks(servers: Map<string, vCenter>, tasks: InputVmPowerTasks): Promise<string> {
   /* Run Power Action for all Tasks */
-  const tasksResult = await Promise.all(tasks.tasks.map(async (task) => {
-    /* Get vCenter Server */
-    const server = servers.get(task.vm.vcenterId);
-    if (!server) throw new Error(`vCenter Server with name "${task.vm.vcenterId}" does not exist`);
-    
-    /* Run Power Action */
-    return await server.VMPower(task.vm.vmId, task.action as VMPowerAction)
-      .catch((e) => `* [${task.vm.vcenterId}] ${task.vm.vmId} - ${task.action}, Error: ${e}`);
-  }))
+  const tasksResult = await Promise.all(
+    tasks.tasks.map(async (task) => {
+      /* Get vCenter Server */
+      const server = servers.get(task.vm.vcenterId);
+      if (!server) throw new Error(`vCenter Server with name "${task.vm.vcenterId}" does not exist`);
+
+      /* Run Power Action */
+      return await server
+        .VMPower(task.vm.vmId, task.action as VMPowerAction)
+        .catch((e) => `* [${task.vm.vcenterId}] ${task.vm.vmId} - ${task.action}, Error: ${e}`);
+    })
+  );
 
   /* Read Tasks Result and pass to the LLM */
   let output: string | undefined;
   tasksResult.forEach((result) => {
-    if (!output && !result) output = "Error running the following tasks:\n"
+    if (!output && !result) output = "Error running the following tasks:\n";
     if (!result) output += `${result}\n`;
-  })
+  });
   if (!output) output = "All tasks done without errors";
   return output;
 }
