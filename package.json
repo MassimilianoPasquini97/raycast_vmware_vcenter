@@ -57,6 +57,18 @@
       },
       {
         "input": "@vmware-vcenter List all vm with more then two core and 8GB of RAM"
+      },
+      {
+        "input": "@vmware-vcenter Which OS do VM1 and VM2 use?"
+      },
+      {
+        "input": "@vmware-vcenter Restart VM1 and VM2"
+      },
+      {
+        "input": "@vmware-vcenter Startup VM1 and VM2"
+      },
+      {
+        "input": "@vmware-vcenter Open VM1 console"
       }
     ]
   },
