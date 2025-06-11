@@ -32,7 +32,7 @@ export default async function tool(input: InputVmIds): Promise<string | void> {
     /* Check Errors */
     if (ticket instanceof Error) {
       if (!output) output = "Error running the following tasks:";
-      output += `* ${ticket}`;
+      output += `\n* ${ticket}`;
       errorCounter += 1;
       continue;
     }
@@ -40,9 +40,10 @@ export default async function tool(input: InputVmIds): Promise<string | void> {
     /* Open Console and Wait */
     await open(ticket);
     if (!opened)
-      await new Promise(() =>
+      await new Promise((resolve) =>
         setTimeout(() => {
           opened = true;
+          resolve(undefined);
         }, 1000)
       );
   }
