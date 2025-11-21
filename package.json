@@ -5,6 +5,10 @@
   "description": "Manage VMware vCenter",
   "icon": "icon.png",
   "author": "massimiliano_pasquini",
+  "platforms": [
+    "macOS",
+    "Windows"
+  ],
   "categories": [
     "Productivity"
   ],
