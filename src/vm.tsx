@@ -495,7 +495,7 @@ export default function Command(): JSX.Element {
           )}
           {vm.vm_info && Server && Server.has(vm.server) && (
             <Action.OpenInBrowser
-              title="Open on vCenter Web"
+              title="Open on Vcenter Web"
               url={`https://${Server.get(vm.server)?.GetFqdn()}/ui/app/vm;nav=v/urn:vmomi:VirtualMachine:${
                 vm.summary.vm
               }:${vm.vm_info.identity?.instance_uuid}/summary`}
@@ -529,7 +529,7 @@ export default function Command(): JSX.Element {
           />
           {vm.interfaces_info && vm.interfaces_info.length > 0 && (
             <Action.CopyToClipboard
-              title="Copy IP"
+              title="Copy Ip"
               icon={Icon.Clipboard}
               content={vm.interfaces_info[0].ip?.ip_addresses[0].ip_address as string}
               shortcut={{ modifiers: ["cmd"], key: "i" }}
@@ -558,12 +558,12 @@ export default function Command(): JSX.Element {
                 onAction={() => VMAction(vm, VMPowerAction.RESET)}
               />
               <Action
-                title="Shut Down Guest OS"
+                title="Shut Down Guest Os"
                 icon={VMGuestPowerActionIcons.get(VMGuestPowerAction.SHUTDOWN)}
                 onAction={() => VMGuestAction(vm, VMGuestPowerAction.SHUTDOWN)}
               />
               <Action
-                title="Restart Guest OS"
+                title="Restart Guest Os"
                 icon={VMGuestPowerActionIcons.get(VMGuestPowerAction.REBOOT)}
                 onAction={() => VMGuestAction(vm, VMGuestPowerAction.REBOOT)}
               />
