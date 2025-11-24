@@ -6,6 +6,7 @@ import {
   VMPowerAction,
   StoragePoliciesSummary,
   VmStoragePolicyComplianceStatus,
+  VmGuestNetworkingInterfacesInfo,
 } from "./api/types";
 import {
   PowerModeIcons,
@@ -35,7 +36,7 @@ import {
   getPreferenceValues,
   open,
 } from "@raycast/api";
-import { usePromise } from "@raycast/utils";
+import { runPowerShellScript, usePromise } from "@raycast/utils";
 import ServerView from "./api/ServerView";
 import { vCenter } from "./api/vCenter";
 
@@ -347,6 +348,38 @@ export default function Command(): JSX.Element {
   }
 
   /**
+   * Open an RDP Session.
+   * @param {VmGuestNetworkingInterfacesInfo} infs
+   */
+  async function VMOpenRdp(infs: VmGuestNetworkingInterfacesInfo[]): Promise<void> {
+    showToast({ style: Toast.Style.Animated, title: "Starting RDP Session" });
+
+    // Array with All IP
+    let ips: string[] = [];
+    infs.forEach((inf) => {
+      if (!inf.ip) return;
+      ips = inf.ip.ip_addresses.filter((ip) => ip.ip_address).map((ip) => ip.ip_address);
+    });
+
+    // Get First IPv4
+    const ip = ips.find((ip) =>
+      ip.match(/^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/)
+    );
+
+    if (process.platform === "darwin") {
+      await open(`rdp://full%20address=s%3A${ip}`).catch((err) => {
+        showToast({ style: Toast.Style.Failure, title: "Error with RDP Session", message: err.message });
+      });
+    } else if (process.platform === "win32") {
+      await runPowerShellScript(`Start-Process mstsc /v:${ip}`).catch((err) => {
+        showToast({ style: Toast.Style.Failure, title: "Error with RDP Session", message: err.message });
+      });
+    }
+
+    showToast({ style: Toast.Style.Success, title: "RDP Session Started" });
+  }
+
+  /**
    * Generate Console Ticket. If the ticket can't be generated it fallback to standard vmrc url requiring authentication.
    * @param {Vm} vm.
    */
@@ -512,17 +545,14 @@ export default function Command(): JSX.Element {
               shortcut={Shortcut.Open}
             />
           )}
-          {vm.interfaces_info &&
-            vm.interfaces_info.length > 0 &&
-            vm.interfaces_info[0].ip?.ip_addresses &&
-            vm.interfaces_info[0].ip.ip_addresses.length > 0 && (
-              <Action.Open
-                title="Open Rdp"
-                icon={{ source: Icon.Binoculars }}
-                target={`rdp://full%20address=s%3A${vm.interfaces_info[0].ip?.ip_addresses[0].ip_address}`}
-                shortcut={Shortcut.OpenWith}
-              />
-            )}
+          {vm.interfaces_info && (
+            <Action
+              title="Open Rdp"
+              icon={{ source: Icon.Binoculars }}
+              onAction={() => VMOpenRdp(vm.interfaces_info!)}
+              shortcut={Shortcut.OpenWith}
+            />
+          )}
           <Action.CopyToClipboard
             title="Copy Name"
             icon={Icon.Clipboard}
