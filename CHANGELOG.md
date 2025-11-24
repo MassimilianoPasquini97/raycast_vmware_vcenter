@@ -1,6 +1,6 @@
 # VMware vCenter Changelog
 
-## [Improvement] - 2025-06-11
+## [Improvement] - {PR_MERGE_DATE}
 
 - [Improvement] New Liquid Glass Icon.
 - [Improvement] Added Windows support.
