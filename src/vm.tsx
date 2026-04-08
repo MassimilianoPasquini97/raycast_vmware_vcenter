@@ -7,7 +7,6 @@ import {
   StoragePoliciesSummary,
   VmStoragePolicyComplianceStatus,
   VmGuestNetworkingInterfacesInfo,
-  VMSummary,
   VMInfo,
   VMStoragePolicyComplianceInfo,
   VmStoragePolicyInfo,
