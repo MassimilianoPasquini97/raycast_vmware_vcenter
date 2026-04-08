@@ -258,7 +258,7 @@ export default function Command(): JSX.Element {
       /* Cache Fallback */
       if (dataCache.has(server)) {
         const value = dataCache.get(server);
-        if (value) dataCache.set(server, value);
+        if (value) dataMerged.set(server, value);
       }
     }
 
