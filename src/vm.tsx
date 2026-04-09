@@ -401,7 +401,7 @@ export default function Command(): JSX.Element {
         cache.set(`vm_${vm.server}_vms`, JSON.stringify(prevValue.filter((value) => value.server === vm.server)));
       }
       return prevValue;
-    })
+    });
     SetIsLoadingVMs(false);
   }
 
