@@ -779,7 +779,7 @@ export default function Command(): React.JSX.Element {
                         shortcut={Shortcut.GuestRestart}
                       >
                         <Action
-                          title={`Yes, Restart Guest Os "${vm.summary.name}`}
+                          title={`Yes, Restart Guest Os "${vm.summary.name}"`}
                           icon={VMGuestPowerActionIcons.get(VMGuestPowerAction.REBOOT)}
                           onAction={() => VMGuestAction(vm, VMGuestPowerAction.REBOOT)}
                         />
